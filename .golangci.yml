@@ -1,0 +1,19 @@
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/Marc0l95/hclforge
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

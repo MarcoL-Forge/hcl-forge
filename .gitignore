@@ -1,0 +1,26 @@
+# Compiled binary
+hclforge
+hclforge.exe
+
+# Test & coverage
+*.out
+coverage.html
+coverage.txt
+
+# Output directories
+dist/
+bin/
+out/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE noise
+.idea/
+.vscode/
+*.swp
+*.swo
+
+output/
+**/output/
