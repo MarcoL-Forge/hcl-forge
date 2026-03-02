@@ -1,0 +1,64 @@
+source_dir: ./templates
+target_dir: ./output
+
+vars:
+  env: production
+  region: us-east-1
+  instance_type: t3.large
+  bucket_name: prod-assets-bucket
+
+flags:
+  enable_monitoring: true
+  use_spot_instances: false
+  attach_ebs: true
+
+files:
+  - path: main.tf
+    changes:
+      # Upgrade instance type using a var
+      - type: set_attr
+        block: resource.aws_instance.web
+        attr: instance_type
+        value: "{{ .Vars.instance_type }}"
+
+      # Enable detailed monitoring when flag is set
+      - type: set_attr
+        block: resource.aws_instance.web
+        attr: monitoring
+        value: "true"
+        if: "{{ .Flags.enable_monitoring }}"
+
+      # Remove spot instance block when not using spot
+      - type: remove_block
+        block: resource.aws_spot_instance_request.web_spot
+        if: "{{ not .Flags.use_spot_instances }}"
+
+      # Rename the S3 bucket attribute
+      - type: set_attr
+        block: resource.aws_s3_bucket.assets
+        attr: bucket
+        value: "{{ .Vars.bucket_name }}"
+
+      # Remove ACL (deprecated in newer AWS provider)
+      - type: remove_attr
+        block: resource.aws_s3_bucket.assets
+        attr: acl
+
+      # Add an EBS volume from a snippet when flag is set
+      - type: add_block
+        from_file: snippets/ebs_volume.tf
+        if: "{{ .Flags.attach_ebs }}"
+
+  - path: variables.tf
+    changes:
+      # Update the default environment
+      - type: set_attr
+        block: variable.environment
+        attr: default
+        value: "{{ .Vars.env }}"
+
+      # Update the default instance type
+      - type: set_attr
+        block: variable.instance_type
+        attr: default
+        value: "{{ .Vars.instance_type }}"
