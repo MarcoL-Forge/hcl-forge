@@ -41,7 +41,8 @@ Current functionality:
   - renders the current document bytes
   - writes to `--out` and/or prints to `--stdout`
 - `replace`
-  - performs one targeted attribute replacement using either a generic selector or the legacy block type, labels, and attribute fields
+  - performs one targeted attribute replacement using either a generic `--target` selector or the legacy `--block-type` / `--labels` / `--attr` flags
+  - supports scalar replacements and raw HCL expression replacements through `--value-type`
   - writes to `--out` and/or prints to `--stdout`
 - `apply`
   - loads a YAML playbook
@@ -51,7 +52,8 @@ Current functionality:
   - prints usage text for the current commands
 
 Current limitations:
-- `replace` handles top-level attributes, top-level block attributes, and nested block attributes, but nested labeled blocks are not supported yet
+- `replace` handles top-level attributes, top-level block attributes, and nested unlabeled block attributes
+- selector resolution can fail when a selector is ambiguous
 - `apply` currently supports only `set_attribute` operations
 - nested object and full block manipulation are not implemented yet
 
@@ -88,8 +90,9 @@ Current functionality:
   - describes a targeted attribute replacement using either a selector or the legacy block fields
 - `ReplaceAttributeValue`
   - parses the document with `hclwrite.ParseConfig`
-  - resolves a target body from a top-level attribute, top-level block, or nested block selector
-  - replaces or sets an attribute value
+  - resolves a target body from a top-level attribute, a top-level block, or a nested block selector
+  - supports selector-based targeting and legacy block-type targeting in the same API
+  - replaces or sets an attribute value with either a cty scalar or raw HCL tokens
   - returns a new `Document` with the updated bytes
 
 Supported value types:
@@ -100,6 +103,7 @@ Supported value types:
 
 Current limitations:
 - nested labeled blocks are not supported in selectors yet
+- selector parsing is dot-delimited, so it is intentionally simple and does not yet model full Terraform addresses
 - no block addition or block removal yet
 
 ### `internal/playbook`
@@ -123,12 +127,14 @@ Current functionality:
   - `value_type`
 - `Load`
   - reads YAML playbooks
-  - validates required fields
+  - defaults `version` to `1` when omitted
+  - validates required fields such as `input` and `operations`
   - resolves relative `input` and `output` paths from the playbook directory
 
 Current limitations:
 - one input file per playbook
-- only `set_attribute` style operations are usable through the current CLI
+- only `set_attribute` operations are usable through the current CLI
+- legacy `block_type` / `labels` / `attribute` targeting remains supported for compatibility, but `target` is the preferred shape for new playbooks
 
 ### `internal/index`
 
@@ -152,6 +158,13 @@ Current commands:
 - `hcl-forge replace --in <file> [--target <selector> | --block-type <type> [--labels <a,b>] --attr <name>] --value <value> [--value-type <type>] [--out <file>] [--stdout]`
 - `hcl-forge apply --playbook <file> [--out <file>] [--stdout]`
 
+Selector examples:
+
+- top-level tfvars attribute: `gcp_region`
+- top-level block attribute: `module.network.source`
+- Terraform resource attribute: `resource.google_container_cluster.this.name`
+- nested block attribute: `resource.google_container_cluster.this.node_config.service_account`
+
 ## Playbook Schema
 
 Current example:
@@ -167,6 +180,8 @@ operations:
     value: example-cluster
     value_type: string
 ```
+
+For raw lists, maps, or objects, use `value_type: hcl`.
 
 ## Update Rule
 
