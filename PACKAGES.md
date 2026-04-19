@@ -183,6 +183,35 @@ operations:
 
 For raw lists, maps, or objects, use `value_type: hcl`.
 
+## TODO
+
+Near-term implementation work:
+
+- add block-level operations such as `replace_block`, `remove_block`, and `add_block`
+- add support for renaming block labels, such as Terraform resource names
+- widen selector resolution beyond attribute targets so operations can address full blocks, labels, and other HCL nodes
+- support nested labeled blocks in selectors
+- improve selector modeling so it can represent Terraform addresses more explicitly than the current dot-delimited form
+- add source-range-aware editing for whole-object replacement with less source drift than full body rewrites
+
+Parser and indexing work:
+
+- introduce explicit block and attribute references instead of resolving only to `body + attribute name`
+- build structural indexes for blocks, attributes, and source ranges under `internal/index`
+- separate read/parse concerns from edit planning so mutations are not limited to `hclwrite` attribute setters
+
+CLI and playbook work:
+
+- add playbook operations beyond `set_attribute`
+- add validation so a playbook can distinguish attribute targets from block targets explicitly
+- keep legacy `block_type` / `labels` / `attribute` support until selector-based operations cover the same use cases fully
+
+Testing work:
+
+- add golden tests for whole-block replacement, block removal, and block insertion
+- add tests for ambiguous selectors, nested labeled blocks, and multi-file Terraform module workflows
+- validate behavior on real Terraform examples with comments, heredocs, objects, and lists to measure source drift
+
 ## Update Rule
 
 When functionality changes, update this file with:
