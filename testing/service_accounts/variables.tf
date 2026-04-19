@@ -16,39 +16,24 @@ variable "gcp_region" {
 variable "gke_workspace_service_account_id" {
 	description = "Service account ID used by the Terraform workspace that manages GKE."
 	type        = string
-	default     = "tf-gke-workspace"
 }
 
 variable "service_project_workspace_service_account_id" {
 	description = "Service account ID used by the Terraform workspace that manages the GCP service project."
 	type        = string
-	default     = "tf-service-project-workspace"
 }
 
 variable "gke_workspace_roles" {
 	description = "Service-project IAM roles granted to the Terraform workspace service account for GKE management."
 	type        = list(string)
-	default = [
-		"roles/container.admin",
-		"roles/compute.networkAdmin",
-		"roles/iam.serviceAccountUser",
-	]
 }
 
 variable "gke_workspace_host_project_roles" {
 	description = "Host-project IAM roles granted to the Terraform workspace service account for shared VPC network access required by GKE."
 	type        = list(string)
-	default = [
-		"roles/compute.networkUser",
-	]
 }
 
 variable "service_project_workspace_roles" {
 	description = "Project-level IAM roles granted to the Terraform workspace service account for service project management."
 	type        = list(string)
-	default = [
-		"roles/resourcemanager.projectIamAdmin",
-		"roles/serviceusage.serviceUsageAdmin",
-		"roles/compute.networkAdmin",
-	]
 }

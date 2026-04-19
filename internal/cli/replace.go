@@ -17,11 +17,12 @@ func runReplace(args []string) error {
 	inputPath := replaceFlags.String("in", "", "input Terraform or HCL file path")
 	outputPath := replaceFlags.String("out", "", "output file path")
 	writeStdout := replaceFlags.Bool("stdout", false, "print replaced content to stdout")
+	target := replaceFlags.String("target", "", "generic target selector, for example module.network.source or resource.aws_instance.web.tags")
 	blockType := replaceFlags.String("block-type", "", "target block type, for example resource or module")
 	labels := replaceFlags.String("labels", "", "comma-separated block labels")
 	attribute := replaceFlags.String("attr", "", "target attribute name")
 	value := replaceFlags.String("value", "", "replacement value")
-	valueType := replaceFlags.String("value-type", "string", "replacement value type: string, bool, or number")
+	valueType := replaceFlags.String("value-type", "string", "replacement value type: string, bool, number, or hcl")
 
 	if err := replaceFlags.Parse(args); err != nil {
 		return err
@@ -31,11 +32,7 @@ func runReplace(args []string) error {
 		return fmt.Errorf("replace requires --in")
 	}
 
-	if *blockType == "" {
-		return fmt.Errorf("replace requires --block-type")
-	}
-
-	if *attribute == "" {
+	if *target == "" && *attribute == "" {
 		return fmt.Errorf("replace requires --attr")
 	}
 
@@ -49,6 +46,7 @@ func runReplace(args []string) error {
 	}
 
 	replacedDoc, err := parser.ReplaceAttributeValue(doc, parser.ReplaceAttributeInput{
+		Selector:  *target,
 		BlockType: *blockType,
 		Labels:    parseLabels(*labels),
 		Attribute: *attribute,

@@ -1,0 +1,21 @@
+version: 1
+
+# Paths are resolved relative to this playbook file.
+input: testing/gke/terraform.tfvars
+output: output.tfvars
+
+operations:
+  - op: set_attribute
+    target: gcp_region
+    value: europe-west1
+    value_type: string
+
+  - op: set_attribute
+    target: environment
+    value: prod
+    value_type: string
+
+  - op: set_attribute
+    target: min_node_count
+    value: "2"
+    value_type: number

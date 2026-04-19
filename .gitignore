@@ -1,0 +1,25 @@
+# Go build outputs
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test artifacts
+*.test
+*.out
+coverage.out
+
+# Local generated Terraform output
+output.tf
+
+# Terraform working directories
+.terraform/
+.terraform.lock.hcl
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/

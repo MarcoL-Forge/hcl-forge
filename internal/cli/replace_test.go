@@ -10,6 +10,7 @@ import (
 // CLI replace tests:
 // - TestRunReplaceWritesOutputFile verifies that `replace --out` updates a targeted block attribute and writes the result.
 // - TestRunReplaceWritesToStdout verifies that `replace --stdout` emits the updated Terraform to standard output.
+// - TestRunReplaceSelectorTarget verifies that `replace --target` can update nested Terraform attributes.
 
 func TestRunReplaceWritesOutputFile(t *testing.T) {
 	inputPath := writeTempTerraformFile(t, "resource \"null_resource\" \"example\" {}\n")
@@ -64,5 +65,26 @@ func TestRunReplaceWritesToStdout(t *testing.T) {
 
 	if !strings.Contains(stdoutOutput, "source = \"./new\"") {
 		t.Fatalf("stdout did not contain replaced attribute: %q", stdoutOutput)
+	}
+}
+
+func TestRunReplaceSelectorTarget(t *testing.T) {
+	inputPath := writeTempTerraformFile(t, "resource \"google_container_cluster\" \"this\" {\n  node_config {\n    service_account = \"old@example.com\"\n  }\n}\n")
+
+	stdoutOutput := captureFileOutput(t, os.Stdout, func() {
+		err := Run([]string{
+			"replace",
+			"--in", inputPath,
+			"--target", "resource.google_container_cluster.this.node_config.service_account",
+			"--value", "new@example.com",
+			"--stdout",
+		})
+		if err != nil {
+			t.Fatalf("Run returned error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdoutOutput, "service_account = \"new@example.com\"") {
+		t.Fatalf("stdout did not contain selector-based replacement: %q", stdoutOutput)
 	}
 }
