@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// Document render tests:
+// - TestRenderDocument verifies that rendering returns the document's Terraform bytes unchanged.
+// - TestRenderDocumentNilDocument verifies that rendering a nil document returns an error.
+
 func TestRenderDocument(t *testing.T) {
 	t.Parallel()
 

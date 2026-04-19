@@ -7,6 +7,10 @@ import (
 	"testing"
 )
 
+// Document load tests:
+// - TestLoadDocument verifies that a Terraform file can be loaded from disk and its bytes are preserved exactly.
+// - TestLoadDocumentMissingFile verifies that loading a missing file returns an error and no partial document.
+
 // TODO: Add table-driven coverage for loader edge cases:
 // - empty files
 // - very large files

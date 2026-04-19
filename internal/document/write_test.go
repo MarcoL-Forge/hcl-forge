@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+// Document write tests:
+// - TestWriteDocument verifies that document bytes are written to the requested output file path.
+// - TestWriteDocumentNilDocument verifies that writing a nil document returns an error.
+// - TestWriteDocumentEmptyOutputPath verifies that writing without an output path returns an error.
+
 func TestWriteDocument(t *testing.T) {
 	t.Parallel()
 
