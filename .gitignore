@@ -52,3 +52,5 @@ output/
 outputs/
 *.generated.tf
 *.generated.tfvars
+
+testing/
