@@ -8,6 +8,7 @@
 - Parse and index Terraform objects (blocks, attributes, selectors).
 - Apply safe transformations (set/remove/add/update) using operations.
 - Write output to one or many target paths (single, mirror, or mapped routing).
+- Run reliably both locally and in CI/CD pipelines with deterministic path resolution.
 - Keep the workflow user-friendly through concise CLI commands and YAML-driven configuration.
 - Provide a dry-run/plan mode with diffs before writing changes.
 
