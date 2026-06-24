@@ -1,34 +1,73 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"os"
+	"log"
 
+	"github.com/Marc0l95/hclforge/internal/editor"
 	"github.com/Marc0l95/hclforge/internal/document"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("usage: hcl-forge <source file> <target directory>")
-		os.Exit(1)
+	inputPath := flag.String("in", "", "input .tf file path")
+	outputDir := flag.String("out", "", "optional output directory; if empty, overwrites input file")
+	oldValue := flag.String("old", "", "text to search for")
+	newValue := flag.String("new", "", "replacement text")
+
+	flag.Parse()
+
+	if *inputPath == "" {
+		log.Fatal("missing required flag: -in")
 	}
 
-	inputDir := os.Args[1]
-	outputDir := os.Args[2]
+	if *oldValue == "" {
+		log.Fatal("missing required flag: -old")
+	}
 
-	raw, err := document.LoadFile(inputDir)
+	data, absPath, err := document.LoadFileWithPath(*inputPath)
 	if err != nil {
-		fmt.Printf("load file: %v\n", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
-	editedRaw := raw
-
-	outputPath, err := document.WriteToTargetDir(inputDir, outputDir, editedRaw)
+	updated, results, err := editor.ApplyEdits(data, []editor.Edit{
+		editor.SearchReplaceEdit{
+			Old: *oldValue,
+			New: *newValue,
+		},
+	})
 	if err != nil {
-		fmt.Printf("write file: %v\n", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
-	fmt.Printf("File written to: %s\n", outputPath)
+	changed := editor.HasChanges(results)
+
+	if !changed {
+		fmt.Printf("No changes made to %s\n", absPath)
+		return
+	}
+
+	var writtenPath string
+
+	if *outputDir != "" {
+		writtenPath, err = document.WriteToTargetDir(absPath, *outputDir, updated)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if err := document.WriteFile(absPath, updated); err != nil {
+			log.Fatal(err)
+		}
+		writtenPath = absPath
+	}
+
+	fmt.Printf("Updated file: %s\n", writtenPath)
+
+	for _, result := range results {
+		fmt.Printf(
+			"- %s, occurrences=%d\n",
+			result.Message,
+			result.Occurrences,
+		)
+	}
 }
