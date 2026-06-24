@@ -1,0 +1,56 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Go build artifacts
+bin/
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go coverage and profiling
+coverage.out
+coverage.txt
+*.coverprofile
+*.pprof
+cpu.prof
+mem.prof
+
+# Go workspace/cache artifacts
+go.work
+go.work.sum
+
+# Logs and temp
+*.log
+tmp/
+temp/
+
+# Terraform local/state artifacts (examples/testing)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
+# Generated outputs from hcl-forge runs
+output/
+outputs/
+*.generated.tf
+*.generated.tfvars
+
+testing/
