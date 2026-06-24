@@ -17,7 +17,7 @@ Use this as the implementation checklist while building out the project.
 
 ### Foundation
 
-- [ ] Initialize Go module and baseline project structure (`cmd`, `internal`, `pkg` if needed).
+- [X] Initialize Go module and baseline project structure (`cmd`, `internal`, `pkg` if needed).
 - [ ] Add parser/document round-trip support for `.tf`, `.tfvars`, and `.hcl`.
 - [ ] Add deterministic write pipeline that minimizes source drift.
 
