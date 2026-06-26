@@ -76,6 +76,31 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: false},
+		{name: "delete_hcl with attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				Attribute: "location",
+			}}
+		}, wantErr: false},
+		{name: "delete_hcl with block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "delete_hcl",
+				Block: &BlockSelector{
+					BlockType: "variable",
+					Labels:    []string{"project_id"},
+				},
+			}}
+		}, wantErr: false},
+		{name: "delete_hcl missing selectors", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{Type: "delete_hcl"}}
+		}, wantErr: true},
+		{name: "delete_hcl delete_all with attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				Attribute: "location",
+				DeleteAll: true,
+			}}
+		}, wantErr: false},
 	}
 
 	for _, tt := range tests {
