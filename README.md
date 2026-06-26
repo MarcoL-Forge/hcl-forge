@@ -85,3 +85,61 @@ edits:
 - When `block` is provided, insertion happens inside the first matching block (`block_type` + exact `labels`).
 - `block.type` is still accepted for backward compatibility.
 - When `block` is omitted, insertion happens at the root body of the file.
+
+### User Guide: Targeting Blocks
+
+Use `block.block_type` to choose the Terraform block kind, and `block.labels` to choose the exact block instance.
+
+For a Terraform resource:
+
+```hcl
+resource "google_container_node_pool" "this" {
+	# ...
+}
+```
+
+Target selector:
+
+```yaml
+block:
+	block_type: resource
+	labels: [google_container_node_pool, this]
+```
+
+For nested unlabeled blocks (for example `node_config {}`), use empty labels:
+
+```yaml
+block:
+	block_type: node_config
+	labels: []
+```
+
+Complete example (insert inside `node_config`):
+
+```yaml
+edits:
+	- type: insert_hcl
+		block:
+			block_type: node_config
+			labels: []
+		hcl: |
+			disk_size_gb = 100
+			tags = ["gke-node", "secure"]
+
+			shielded_instance_config {
+				enable_secure_boot          = true
+				enable_integrity_monitoring = true
+			}
+```
+
+Run it:
+
+```bash
+go run ./cmd/hcl-forge plan -config example_playbook/tf_insert_node_config.yaml
+go run ./cmd/hcl-forge apply -config example_playbook/tf_insert_node_config.yaml
+```
+
+Notes:
+
+- Matching is exact on `block_type` and label order.
+- If multiple blocks match, the first match found is used.
