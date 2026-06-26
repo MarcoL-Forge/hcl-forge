@@ -179,3 +179,24 @@ edits:
 	- type: delete_hcl
 		attribute: required_version
 ```
+
+Delete all matching attributes or blocks across the file:
+
+```yaml
+edits:
+	- type: delete_hcl
+		attribute: oauth_scopes
+		delete_all: true
+
+	- type: delete_hcl
+		block:
+			block_type: management
+			labels: []
+		delete_all: true
+```
+
+`delete_all: true` behavior:
+
+- with `attribute`: removes every matching attribute (scope is root + nested blocks, or only matched blocks when `block` is provided)
+- with `block`: removes every matching block
+- without `delete_all` (default): removes only the first match

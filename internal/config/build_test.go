@@ -190,6 +190,7 @@ func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
 		Edits: []EditConfig{{
 			Type:      "delete_hcl",
 			Attribute: "location",
+			DeleteAll: true,
 			Block: &BlockSelector{
 				BlockType: "resource",
 				Labels:    []string{"google_storage_bucket", "bucket"},
@@ -217,6 +218,10 @@ func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
 
 	if deleteEdit.Attribute != "location" {
 		t.Fatalf("unexpected attribute: %q", deleteEdit.Attribute)
+	}
+
+	if !deleteEdit.DeleteAll {
+		t.Fatalf("expected delete_all to be true")
 	}
 
 	if deleteEdit.TargetBlock == nil || deleteEdit.TargetBlock.Type != "resource" {

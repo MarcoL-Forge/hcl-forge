@@ -87,6 +87,7 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 		return editor.DeleteHCLEdit{
 			TargetBlock: targetBlock,
 			Attribute:   editCfg.Attribute,
+			DeleteAll:   editCfg.DeleteAll,
 		}, nil
 
 	default:

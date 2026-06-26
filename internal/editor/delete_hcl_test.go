@@ -68,3 +68,77 @@ func TestDeleteHCLEdit_RequiresTarget(t *testing.T) {
 		t.Fatalf("expected error for missing attribute/block selector")
 	}
 }
+
+func TestDeleteHCLEdit_DeleteAllMatchingBlocks(t *testing.T) {
+	input := `variable "a" {
+  type = string
+}
+
+resource "google_storage_bucket" "bucket" {
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+`
+
+	edit := DeleteHCLEdit{
+		TargetBlock: &BlockSelector{Type: "lifecycle", Labels: []string{}},
+		DeleteAll:   true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl all blocks: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 2 {
+		t.Fatalf("expected two deleted blocks, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "lifecycle {") {
+		t.Fatalf("expected all lifecycle blocks removed, got:\n%s", out)
+	}
+}
+
+func TestDeleteHCLEdit_DeleteAllAttributesAcrossFile(t *testing.T) {
+	input := `terraform {
+  required_version = ">= 1.5.0"
+}
+
+resource "google_storage_bucket" "bucket" {
+  name     = "my-bucket"
+  location = "europe-west1"
+
+  versioning {
+    enabled = true
+  }
+}
+
+resource "google_storage_bucket" "bucket2" {
+  name     = "my-bucket-2"
+  location = "us-central1"
+}
+`
+
+	edit := DeleteHCLEdit{
+		Attribute: "location",
+		DeleteAll: true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl all attributes: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 2 {
+		t.Fatalf("expected two deleted attributes, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "location =") {
+		t.Fatalf("expected all location attributes removed, got:\n%s", out)
+	}
+}

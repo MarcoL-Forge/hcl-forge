@@ -10,6 +10,7 @@ import (
 type DeleteHCLEdit struct {
 	TargetBlock *BlockSelector
 	Attribute   string
+	DeleteAll   bool
 }
 
 func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
@@ -19,32 +20,61 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	}
 
 	if e.Attribute != "" {
-		targetBody := file.Body()
+		targetBodies := []*hclwrite.Body{file.Body()}
 		if e.TargetBlock != nil {
-			target := findMatchingBlock(file.Body(), *e.TargetBlock)
-			if target == nil {
+			if e.DeleteAll {
+				targetBodies = findMatchingBodies(file.Body(), *e.TargetBlock)
+			} else {
+				target := findMatchingBlock(file.Body(), *e.TargetBlock)
+				if target == nil {
+					return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
+				}
+				targetBodies = []*hclwrite.Body{target.Body()}
+			}
+
+			if len(targetBodies) == 0 {
 				return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
 			}
-			targetBody = target.Body()
+		} else if e.DeleteAll {
+			targetBodies = collectAllBodies(file.Body())
 		}
 
-		if targetBody.GetAttribute(e.Attribute) == nil {
+		deleted := 0
+		for _, body := range targetBodies {
+			if body.GetAttribute(e.Attribute) == nil {
+				continue
+			}
+			body.RemoveAttribute(e.Attribute)
+			deleted++
+
+			if !e.DeleteAll {
+				break
+			}
+		}
+
+		if deleted == 0 {
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "attribute not found"}, nil
 		}
 
-		targetBody.RemoveAttribute(e.Attribute)
-		return file.Bytes(), EditResult{Changed: true, Occurrences: 1, Message: "attribute deleted"}, nil
+		return file.Bytes(), EditResult{Changed: true, Occurrences: deleted, Message: "attribute deleted"}, nil
 	}
 
 	if e.TargetBlock == nil {
 		return nil, EditResult{}, fmt.Errorf("delete_hcl requires attribute or block selector")
 	}
 
-	if !removeFirstMatchingBlock(file.Body(), *e.TargetBlock) {
+	removed := 0
+	if e.DeleteAll {
+		removed = removeAllMatchingBlocks(file.Body(), *e.TargetBlock)
+	} else if removeFirstMatchingBlock(file.Body(), *e.TargetBlock) {
+		removed = 1
+	}
+
+	if removed == 0 {
 		return data, EditResult{Changed: false, Occurrences: 0, Message: "block not found"}, nil
 	}
 
-	return file.Bytes(), EditResult{Changed: true, Occurrences: 1, Message: "block deleted"}, nil
+	return file.Bytes(), EditResult{Changed: true, Occurrences: removed, Message: "block deleted"}, nil
 }
 
 func removeFirstMatchingBlock(body *hclwrite.Body, selector BlockSelector) bool {
@@ -60,4 +90,43 @@ func removeFirstMatchingBlock(body *hclwrite.Body, selector BlockSelector) bool 
 	}
 
 	return false
+}
+
+func removeAllMatchingBlocks(body *hclwrite.Body, selector BlockSelector) int {
+	removed := 0
+
+	for _, block := range body.Blocks() {
+		removed += removeAllMatchingBlocks(block.Body(), selector)
+
+		if blockMatches(block, selector) {
+			body.RemoveBlock(block)
+			removed++
+		}
+	}
+
+	return removed
+}
+
+func findMatchingBodies(body *hclwrite.Body, selector BlockSelector) []*hclwrite.Body {
+	bodies := make([]*hclwrite.Body, 0)
+
+	for _, block := range body.Blocks() {
+		if blockMatches(block, selector) {
+			bodies = append(bodies, block.Body())
+		}
+
+		bodies = append(bodies, findMatchingBodies(block.Body(), selector)...)
+	}
+
+	return bodies
+}
+
+func collectAllBodies(body *hclwrite.Body) []*hclwrite.Body {
+	bodies := []*hclwrite.Body{body}
+
+	for _, block := range body.Blocks() {
+		bodies = append(bodies, collectAllBodies(block.Body())...)
+	}
+
+	return bodies
 }
