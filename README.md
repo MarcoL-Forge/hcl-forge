@@ -55,4 +55,7 @@ Run all layers explicitly:
 make test-unit
 make test-integration
 make test-e2e
+make test-coverage
 ```
+
+`make test-coverage` writes a coverage profile to `coverage.out` and prints the overall statement coverage percentage.
