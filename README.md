@@ -1,64 +1,38 @@
 # hcl-forge
 
-`hcl-forge` is a Go-based CLI and library for safely manipulating Terraform/HCL files while preserving existing formatting and comments as much as possible.
+`hcl-forge` is a Go-based CLI and library for safely modifying Terraform and HCL files at scale.
 
-## Intent
+It is designed for local developer workflows and CI/CD pipelines where teams need deterministic, reviewable, and repeatable transformations across one or many `.tf`, `.tfvars`, or `.hcl` files while preserving existing formatting and comments as much as possible.
 
-- Ingest one or many Terraform/HCL source files.
-- Parse and index Terraform objects (blocks, attributes, selectors).
-- Apply safe transformations (set/remove/add/update) using operations.
-- Write output to one or many target paths (single, mirror, or mapped routing).
-- Run reliably both locally and in CI/CD pipelines with deterministic path resolution.
-- Keep the workflow user-friendly through concise CLI commands and YAML-driven configuration.
-- Provide a dry-run/plan mode with diffs before writing changes.
+## Goals
 
-## Builder Checklist
+`hcl-forge` aims to provide a safe editing layer for Terraform/HCL source files.
 
-Use this as the implementation checklist while building out the project.
+Core goals:
 
-### Foundation
+- Read one or many Terraform/HCL files.
+- Apply declarative edit operations from a YAML playbook.
+- Support local and pipeline execution using the same workflow.
+- Preserve existing formatting, comments, and file structure where possible.
+- Provide a `plan` mode to preview changes before writing.
+- Support deterministic input/output routing for generated or patched files.
+- Keep the CLI dependency-light and automation-friendly.
 
-- [ ] Initialize Go module and baseline project structure (`cmd`, `internal`, `pkg` if needed).
-- [ ] Add parser/document round-trip support for `.tf`, `.tfvars`, and `.hcl`.
-- [ ] Add deterministic write pipeline that minimizes source drift.
+## Non-goals
 
-### Targeting + Operations
+`hcl-forge` is not intended to replace Terraform.
 
-- [ ] Define selector grammar for block and attribute targeting.
-- [ ] Implement `set_attribute`.
-- [ ] Implement `remove_attribute`.
-- [ ] Implement `remove_block`.
-- [ ] Implement `add_block` via snippets/templates.
-- [ ] Add validation for missing/ambiguous selectors.
+It does not:
 
-### Multi-file Routing
+- Execute Terraform plans or applies.
+- Validate provider-specific resource schemas.
+- Guarantee semantic Terraform correctness.
+- Replace `terraform fmt` or `terraform validate`.
 
-- [ ] Accept single file, multiple files, and glob patterns as input.
-- [ ] Add routing modes: single output, mirrored output tree, explicit mapping.
-- [ ] Support one-to-many output fan-out.
-- [ ] Handle path collisions with explicit policy (`error`, `overwrite`, `suffix`).
+Recommended pipeline flow:
 
-### User Experience
-
-- [ ] Keep one main config file (`hclforge.yaml`) for defaults/aliases/recipes.
-- [ ] Add short intent commands (`add`, `remove`, `set`, `run`).
-- [ ] Add `plan`/`dry-run` command for preview-only execution.
-- [ ] Add optional interactive mode for guided edits.
-
-### Testing + Quality
-
-- [ ] Add golden tests focused on minimal source drift.
-- [ ] Add fixtures with comments, heredocs, nested blocks, and objects.
-- [ ] Add command tests for `render`, `replace`, and `apply` paths.
-- [ ] Add CI checks for test, lint, and formatting.
-
-## Minimal Required Dependencies (v1)
-
-- `github.com/hashicorp/hcl/v2` (parsing + safe HCL editing via subpackages)
-- `gopkg.in/yaml.v3` (YAML config/playbook loading)
-
-CLI note: use Go's standard `flag` package initially to keep dependencies minimal.
-
-## Status
-
-This branch is currently focused on setting up architecture and workflow. Use the checklist above as the source of truth for progress.
+```bash
+hcl-forge plan -config hclforge.yaml
+hcl-forge apply -config hclforge.yaml
+terraform fmt
+terraform validate
