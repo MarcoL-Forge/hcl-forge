@@ -19,7 +19,7 @@ type OutputConfig struct {
 }
 
 type Options struct {
-	Workers         int  `yaml:"workers"`
+	Workers        int  `yaml:"workers"`
 	FailOnNoChange bool `yaml:"fail_on_no_change"`
 }
 
@@ -30,12 +30,26 @@ type EditConfig struct {
 	Old string `yaml:"old"`
 	New string `yaml:"new"`
 
+	// insert_hcl
+	HCL string `yaml:"hcl"`
+
 	// future HCL-aware edits
 	Block     *BlockSelector `yaml:"block"`
 	Attribute string         `yaml:"attribute"`
 }
 
 type BlockSelector struct {
-	Type   string   `yaml:"type"`
-	Labels []string `yaml:"labels"`
+	Type      string   `yaml:"type"`
+	BlockType string   `yaml:"block_type"`
+	Labels    []string `yaml:"labels"`
+}
+
+// SelectedType returns the effective selector type.
+// block_type is preferred; type is kept for backward compatibility.
+func (s BlockSelector) SelectedType() string {
+	if s.BlockType != "" {
+		return s.BlockType
+	}
+
+	return s.Type
 }
