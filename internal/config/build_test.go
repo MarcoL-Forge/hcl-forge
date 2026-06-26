@@ -177,3 +177,49 @@ func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
 		t.Fatalf("unexpected target block: %+v", insertEdit.TargetBlock)
 	}
 }
+
+func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:      "delete_hcl",
+			Attribute: "location",
+			Block: &BlockSelector{
+				BlockType: "resource",
+				Labels:    []string{"google_storage_bucket", "bucket"},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	if len(plans) != 1 {
+		t.Fatalf("expected 1 plan, got %d", len(plans))
+	}
+
+	if len(plans[0].Edits) != 1 {
+		t.Fatalf("expected 1 edit, got %d", len(plans[0].Edits))
+	}
+
+	deleteEdit, ok := plans[0].Edits[0].(editor.DeleteHCLEdit)
+	if !ok {
+		t.Fatalf("expected DeleteHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if deleteEdit.Attribute != "location" {
+		t.Fatalf("unexpected attribute: %q", deleteEdit.Attribute)
+	}
+
+	if deleteEdit.TargetBlock == nil || deleteEdit.TargetBlock.Type != "resource" {
+		t.Fatalf("unexpected target block: %+v", deleteEdit.TargetBlock)
+	}
+}

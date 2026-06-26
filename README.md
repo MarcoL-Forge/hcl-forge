@@ -143,3 +143,39 @@ Notes:
 
 - Matching is exact on `block_type` and label order.
 - If multiple blocks match, the first match found is used.
+
+## Delete HCL Edits
+
+Use `delete_hcl` to remove either:
+
+- an attribute (key/value), optionally inside a selected block
+- a whole block selected by `block_type` + `labels`
+
+Delete an attribute inside a resource:
+
+```yaml
+edits:
+	- type: delete_hcl
+		block:
+			block_type: resource
+			labels: [google_storage_bucket, bucket]
+		attribute: location
+```
+
+Delete a whole block:
+
+```yaml
+edits:
+	- type: delete_hcl
+		block:
+			block_type: variable
+			labels: [project_id]
+```
+
+Delete a root-level attribute (no `block` selector):
+
+```yaml
+edits:
+	- type: delete_hcl
+		attribute: required_version
+```

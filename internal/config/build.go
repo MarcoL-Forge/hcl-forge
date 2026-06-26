@@ -75,6 +75,20 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 			TargetBlock: targetBlock,
 		}, nil
 
+	case "delete_hcl":
+		var targetBlock *editor.BlockSelector
+		if editCfg.Block != nil {
+			targetBlock = &editor.BlockSelector{
+				Type:   editCfg.Block.SelectedType(),
+				Labels: append([]string(nil), editCfg.Block.Labels...),
+			}
+		}
+
+		return editor.DeleteHCLEdit{
+			TargetBlock: targetBlock,
+			Attribute:   editCfg.Attribute,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported edit type %q", editCfg.Type)
 	}
