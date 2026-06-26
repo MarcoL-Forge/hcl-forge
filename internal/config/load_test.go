@@ -85,3 +85,112 @@ edits:
 		t.Fatalf("expected validation error, got nil")
 	}
 }
+
+func TestLoad_ExpandsEnvVars(t *testing.T) {
+	t.Setenv("HCL_INPUT_ROOT", "./testing/gke")
+	t.Setenv("HCL_OUTPUT_DIR", "./out/from-env")
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "tfedit.yaml")
+
+	content := `version: 1
+input:
+  root_dir: ${HCL_INPUT_ROOT}
+  files:
+    - storage_bucket.tf
+output:
+  mode: target_dir
+  target_dir: ${HCL_OUTPUT_DIR}
+options:
+  workers: 1
+  fail_on_no_change: false
+edits:
+  - type: search_replace
+    old: old
+    new: new
+`
+
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	if cfg.Input.RootDir != "./testing/gke" {
+		t.Fatalf("expected expanded input root, got %q", cfg.Input.RootDir)
+	}
+	if cfg.Output.TargetDir != "./out/from-env" {
+		t.Fatalf("expected expanded output dir, got %q", cfg.Output.TargetDir)
+	}
+}
+
+func TestLoad_ExpandsEnvVarsWithDefault(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "tfedit.yaml")
+
+	content := `version: 1
+input:
+  root_dir: ${UNSET_ROOT:-./testing/gke}
+  files:
+    - storage_bucket.tf
+output:
+  mode: target_dir
+  target_dir: ${UNSET_OUTPUT:-./out/default-dir}
+options:
+  workers: 1
+  fail_on_no_change: false
+edits:
+  - type: search_replace
+    old: old
+    new: new
+`
+
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	if cfg.Input.RootDir != "./testing/gke" {
+		t.Fatalf("expected default root dir, got %q", cfg.Input.RootDir)
+	}
+	if cfg.Output.TargetDir != "./out/default-dir" {
+		t.Fatalf("expected default output dir, got %q", cfg.Output.TargetDir)
+	}
+}
+
+func TestLoad_MissingRequiredEnvVar(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "tfedit.yaml")
+
+	content := `version: 1
+input:
+  root_dir: ${MISSING_ROOT}
+  files:
+    - storage_bucket.tf
+output:
+  mode: overwrite
+options:
+  workers: 1
+  fail_on_no_change: false
+edits:
+  - type: search_replace
+    old: old
+    new: new
+`
+
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatalf("expected missing env var error, got nil")
+	}
+}

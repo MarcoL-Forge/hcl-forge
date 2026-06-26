@@ -200,3 +200,57 @@ edits:
 - with `attribute`: removes every matching attribute (scope is root + nested blocks, or only matched blocks when `block` is provided)
 - with `block`: removes every matching block
 - without `delete_all` (default): removes only the first match
+
+## CI Pipeline Inputs
+
+Playbooks support environment variable interpolation during config load.
+
+In any CI run step (including Harness), `hcl-forge` reads environment variables from the process and automatically substitutes them into playbooks when loading the config. No separate templating step is required.
+
+Supported syntax:
+
+- `${VAR}`: required environment variable (load fails if missing)
+- `${VAR:-default}`: optional variable with fallback default
+
+Example playbook pattern:
+
+```yaml
+input:
+	root_dir: ${HCLFORGE_INPUT_ROOT}
+	files:
+		- ${HCLFORGE_TARGET_FILE:-storage_bucket.tf}
+
+output:
+	mode: target_dir
+	target_dir: ${HCLFORGE_OUTPUT_DIR:-./out/pipeline}
+```
+
+Generic CI step example:
+
+```bash
+export HCLFORGE_INPUT_ROOT="./testing/gke"
+export HCLFORGE_TARGET_FILE="storage_bucket.tf"
+export HCLFORGE_OUTPUT_DIR="./out/pipeline"
+export HCLFORGE_PIPELINE_NAME="${HCLFORGE_PIPELINE_NAME:-my-pipeline}"
+export HCLFORGE_ENV="${HCLFORGE_ENV:-dev}"
+
+go run ./cmd/hcl-forge plan -config example_playbook/tf_harness_pipeline.yaml
+go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
+```
+
+Harness mapping example (set generic vars from Harness expressions):
+
+```bash
+export HCLFORGE_INPUT_ROOT="<+pipeline.variables.inputRoot>"
+export HCLFORGE_TARGET_FILE="<+pipeline.variables.targetFile>"
+export HCLFORGE_OUTPUT_DIR="./out/<+pipeline.sequenceId>"
+export HCLFORGE_PIPELINE_NAME="<+pipeline.name>"
+export HCLFORGE_ENV="<+pipeline.variables.environment>"
+
+go run ./cmd/hcl-forge plan -config example_playbook/tf_harness_pipeline.yaml
+go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
+```
+
+This keeps playbooks platform-neutral while still allowing Harness to populate values.
+
+See `example_playbook/tf_harness_pipeline.yaml` for a complete template-ready playbook.
