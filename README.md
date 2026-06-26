@@ -36,3 +36,23 @@ hcl-forge plan -config hclforge.yaml
 hcl-forge apply -config hclforge.yaml
 terraform fmt
 terraform validate
+```
+
+## Test Organization
+
+Use package-local tests by default, and separate layers using build tags rather than top-level test folders.
+
+- Unit tests: keep `*_test.go` next to the code they test (fast `go test ./...`).
+- Integration tests: keep near the package under test and gate with `//go:build integration`.
+- E2E tests: place near the CLI entrypoint and gate with `//go:build e2e`.
+- Fixtures: keep reusable sample files in `testing/` or package-scoped `testdata/` directories.
+
+This repo follows that model, which is idiomatic in Go and works well in CI.
+
+Run all layers explicitly:
+
+```bash
+make test-unit
+make test-integration
+make test-e2e
+```

@@ -7,8 +7,12 @@ import (
 	"github.com/Marc0l95/hclforge/internal/cli"
 )
 
+func run(args []string) error {
+	return cli.Run(args)
+}
+
 func main() {
-	if err := cli.Run(os.Args); err != nil {
+	if err := run(os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
