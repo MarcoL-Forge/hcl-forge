@@ -1,9 +1,14 @@
 package main
 
 import (
-	"fmt"	
+	"log"
+	"os"
+
+	"github.com/Marc0l95/hclforge/internal/cli"
 )
 
 func main() {
-	fmt.Println("Setting up")
+	if err := cli.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
 }

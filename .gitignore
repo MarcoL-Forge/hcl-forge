@@ -54,3 +54,4 @@ outputs/
 *.generated.tfvars
 
 testing/
+example_playbook/
