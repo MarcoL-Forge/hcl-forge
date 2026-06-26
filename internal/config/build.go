@@ -61,6 +61,20 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 			New: editCfg.New,
 		}, nil
 
+	case "insert_hcl":
+		var targetBlock *editor.BlockSelector
+		if editCfg.Block != nil {
+			targetBlock = &editor.BlockSelector{
+				Type:   editCfg.Block.SelectedType(),
+				Labels: append([]string(nil), editCfg.Block.Labels...),
+			}
+		}
+
+		return editor.InsertHCLEdit{
+			HCL:         editCfg.HCL,
+			TargetBlock: targetBlock,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported edit type %q", editCfg.Type)
 	}

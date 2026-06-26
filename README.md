@@ -59,3 +59,29 @@ make test-coverage
 ```
 
 `make test-coverage` writes a coverage profile to `coverage.out` and prints the overall statement coverage percentage.
+
+## Insert HCL Edits
+
+Use `insert_hcl` to insert Terraform attributes or blocks at the file root or inside a specific block.
+
+```yaml
+edits:
+	- type: insert_hcl
+		block:
+			block_type: resource
+			labels:
+				- google_storage_bucket
+				- bucket
+		hcl: |
+			force_destroy = true
+
+	- type: insert_hcl
+		hcl: |
+			terraform {
+				required_version = ">= 1.5.0"
+			}
+```
+
+- When `block` is provided, insertion happens inside the first matching block (`block_type` + exact `labels`).
+- `block.type` is still accepted for backward compatibility.
+- When `block` is omitted, insertion happens at the root body of the file.

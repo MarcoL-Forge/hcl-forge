@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Marc0l95/hclforge/internal/editor"
 )
 
 func TestBuildFilePlans_Overwrite(t *testing.T) {
@@ -127,5 +129,51 @@ func TestBuildFilePlans_UnsupportedOutputMode(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported output mode") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type: "insert_hcl",
+			HCL:  "force_destroy = true",
+			Block: &BlockSelector{
+				BlockType: "resource",
+				Labels:    []string{"google_storage_bucket", "bucket"},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	if len(plans) != 1 {
+		t.Fatalf("expected 1 plan, got %d", len(plans))
+	}
+
+	if len(plans[0].Edits) != 1 {
+		t.Fatalf("expected 1 edit, got %d", len(plans[0].Edits))
+	}
+
+	insertEdit, ok := plans[0].Edits[0].(editor.InsertHCLEdit)
+	if !ok {
+		t.Fatalf("expected InsertHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if insertEdit.HCL != "force_destroy = true" {
+		t.Fatalf("unexpected insert hcl content: %q", insertEdit.HCL)
+	}
+
+	if insertEdit.TargetBlock == nil || insertEdit.TargetBlock.Type != "resource" {
+		t.Fatalf("unexpected target block: %+v", insertEdit.TargetBlock)
 	}
 }

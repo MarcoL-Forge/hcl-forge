@@ -53,6 +53,29 @@ func TestValidate(t *testing.T) {
 		{name: "unsupported edit type", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{Type: "unknown"}}
 		}, wantErr: true},
+		{name: "insert_hcl valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{Type: "insert_hcl", HCL: "variable \"x\" { type = string }"}}
+		}, wantErr: false},
+		{name: "insert_hcl missing snippet", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{Type: "insert_hcl"}}
+		}, wantErr: true},
+		{name: "insert_hcl block missing type", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:  "insert_hcl",
+				HCL:   "force_destroy = true",
+				Block: &BlockSelector{Type: "", BlockType: "", Labels: []string{"a", "b"}},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl block_type accepted", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					BlockType: "node_config",
+					Labels:    []string{},
+				},
+			}}
+		}, wantErr: false},
 	}
 
 	for _, tt := range tests {

@@ -50,6 +50,14 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: search_replace requires old", i)
 			}
 
+		case "insert_hcl":
+			if edit.HCL == "" {
+				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
+			}
+			if edit.Block != nil && edit.Block.SelectedType() == "" {
+				return fmt.Errorf("edits[%d]: block selector requires block_type (or type)", i)
+			}
+
 		default:
 			return fmt.Errorf("edits[%d]: unsupported edit type %q", i, edit.Type)
 		}
