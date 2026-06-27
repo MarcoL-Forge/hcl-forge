@@ -1,0 +1,57 @@
+name: Semantic Release (Conventional Commits)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  determine-and-release:
+    name: Determine version & release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Get last tag
+        id: last_tag
+        run: |
+          git fetch --tags
+          echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+
+      - name: Determine next semver from commits
+        id: semver
+        uses: amannn/action-semver@v4
+        with:
+          # Uses Conventional Commits in the repo to compute next version.
+          tag_prefix: 'v'
+          default_bump: patch
+
+      - name: Create tag and push
+        if: steps.semver.outputs.new_version != ''
+        env:
+          NEW_VERSION: ${{ steps.semver.outputs.new_version }}
+        run: |
+          echo "Creating tag v${NEW_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${NEW_VERSION}" -m "chore(release): v${NEW_VERSION} [skip ci]"
+          git push origin "v${NEW_VERSION}"
+
+      - name: Trigger GoReleaser
+        if: steps.semver.outputs.new_version != ''
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          version: latest
+          args: release --rm-dist --skip-announce
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
