@@ -254,3 +254,92 @@ go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
 This keeps playbooks platform-neutral while still allowing Harness to populate values.
 
 See `example_playbook/tf_harness_pipeline.yaml` for a complete template-ready playbook.
+
+## Publish and Install
+
+This project can be published as downloadable binaries using GitHub Releases.
+
+### User installs
+
+Install from source (requires Go):
+
+```bash
+go install github.com/Marc0l95/hclforge/cmd/hcl-forge@latest
+```
+
+Install prebuilt binaries:
+
+1. Go to GitHub Releases for this repository.
+2. Download the archive matching your OS/CPU (for example `hcl-forge_v1.2.3_darwin_arm64.tar.gz`).
+3. Extract and place `hcl-forge` in your `PATH`.
+
+### Maintainer release flow
+
+Releases are automated with GoReleaser via `.github/workflows/release.yml` and `.goreleaser.yaml`.
+
+To publish a new version:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+When a `v*` tag is pushed, GitHub Actions will:
+
+- run tests
+- build binaries for Linux/macOS/Windows (`amd64` and `arm64`)
+- create release archives and checksums
+- publish assets to the GitHub Release
+
+### Install in Go pipelines
+
+Use `go install` (preferred over `go get` for binaries):
+
+```bash
+go install github.com/Marc0l95/hclforge/cmd/hcl-forge@latest
+```
+
+Pinned version:
+
+```bash
+go install github.com/Marc0l95/hclforge/cmd/hcl-forge@v0.1.0
+```
+
+### Docker Image for Pipeline Ingestion
+
+Release publishing is currently focused on GoReleaser binaries. Docker image distribution is a separate, optional path you can run from your own CI.
+
+Build an image from this repository:
+
+```bash
+docker build -t hcl-forge:local .
+```
+
+Run `hcl-forge` in a container against your checked out repository:
+
+```bash
+docker run --rm \
+	-v "$PWD:/work" \
+	-w /work \
+	-e HCLFORGE_INPUT_ROOT=./testing/gke \
+	-e HCLFORGE_TARGET_FILE=storage_bucket.tf \
+	-e HCLFORGE_OUTPUT_DIR=./out/pipeline \
+	hcl-forge:local plan -config example_playbook/tf_harness_pipeline.yaml
+
+docker run --rm \
+	-v "$PWD:/work" \
+	-w /work \
+	-e HCLFORGE_INPUT_ROOT=./testing/gke \
+	-e HCLFORGE_TARGET_FILE=storage_bucket.tf \
+	-e HCLFORGE_OUTPUT_DIR=./out/pipeline \
+	hcl-forge:local apply -config example_playbook/tf_harness_pipeline.yaml
+```
+
+If you want to use GAR for Harness + Aqua scanning, push this image from your CI:
+
+```bash
+docker tag hcl-forge:local ${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/hcl-forge:latest
+docker push ${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/hcl-forge:latest
+```
+
+Then configure Harness to pull that image, run Aqua scan, and execute `hcl-forge` commands in the step.
