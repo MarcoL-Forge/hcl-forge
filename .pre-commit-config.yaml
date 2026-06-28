@@ -1,9 +1,29 @@
 repos:
   - repo: local
     hooks:
-      - id: hcl-forge-quality
-        name: hcl-forge quality checks
-        entry: .githooks/pre-commit
+      - id: no-trailing-whitespace
+        name: no trailing whitespace
+        entry: >-
+          zsh -c 'ret=0; for f in "$@"; do [[ -f "$f" ]] || continue;
+          if grep -n "[[:blank:]]$" "$f" >/dev/null; then echo "trailing whitespace: $f"; ret=1; fi;
+          done; exit $ret'
+        language: system
+        files: '\.(go|ya?ml|md)$'
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -w
+        language: system
+        types: [go]
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
         language: system
         pass_filenames: false
-        always_run: true
+      - id: golangci-lint
+        name: golangci-lint
+        entry: >-
+          zsh -c 'if [[ -x "$(go env GOPATH)/bin/golangci-lint" ]]; then "$(go env GOPATH)/bin/golangci-lint" run ./...;
+          elif command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...;
+          else go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 && "$(go env GOPATH)/bin/golangci-lint" run ./...; fi'
+        language: system
+        pass_filenames: false

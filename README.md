@@ -20,26 +20,27 @@ Core goals:
 
 ## Pre-commit Quality Checks
 
-The repository includes a git pre-commit hook that mirrors CI quality checks for formatting and linting.
+The repository uses native `pre-commit` hooks for formatting, linting, and quality checks.
 
 Install once per clone:
 
 ```bash
-make precommit-install
+git config --unset-all core.hooksPath || true
+pre-commit install
+```
+
+Run all hooks manually:
+
+```bash
+pre-commit run --all-files
 ```
 
 What runs before every commit:
 
-- `gofmt` on staged `.go` files (auto-formats and re-stages)
-- repository-wide `gofmt` check
+- trailing-whitespace check for Go/YAML/Markdown files
+- `gofmt -w` for Go files
 - `go vet ./...`
-- `golangci-lint run ./...` (auto-installs pinned `v1.64.8` if missing)
-
-Run the same hook manually:
-
-```bash
-make precommit-run
-```
+- `golangci-lint run ./...` (pinned to `v1.64.8`)
 
 ## Non-goals
 

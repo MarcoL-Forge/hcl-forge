@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: test test-unit test-integration test-e2e test-coverage fmt fmt-check vet lint quality-checks precommit-install precommit-run
+.PHONY: test test-unit test-integration test-e2e test-coverage fmt fmt-check vet lint quality-checks
 
 test: test-unit
 
@@ -30,11 +30,3 @@ lint:
 	$(go env GOPATH)/bin/golangci-lint run ./...
 
 quality-checks: fmt-check vet lint
-
-precommit-install:
-	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-commit
-	@echo "Installed pre-commit hook via core.hooksPath=.githooks"
-
-precommit-run:
-	.githooks/pre-commit
