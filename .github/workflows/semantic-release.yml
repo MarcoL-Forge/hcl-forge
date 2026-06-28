@@ -5,36 +5,81 @@ on:
     branches:
       - main
 
+concurrency:
+  group: semantic-release-main
+  cancel-in-progress: false
+
 jobs:
   determine-and-release:
-    name: Determine version & release
+    name: Determine version & tag
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.25'
-
-      - name: Get last tag
-        id: last_tag
-        run: |
-          git fetch --tags
-          echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          go-version-file: go.mod
 
       - name: Determine next semver from commits
         id: semver
-        uses: amannn/action-semver@v4
-        with:
-          # Uses Conventional Commits in the repo to compute next version.
-          tag_prefix: 'v'
-          default_bump: patch
+        run: |
+          git fetch --tags
+
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          if [ -z "$LAST_TAG" ]; then
+            LAST_TAG="v0.0.0"
+            RANGE="HEAD"
+          else
+            RANGE="$LAST_TAG..HEAD"
+          fi
+
+          echo "Last tag: $LAST_TAG"
+          COMMITS=$(git log --format=%s%n%b $RANGE)
+
+          BUMP=""
+          if echo "$COMMITS" | grep -Eq 'BREAKING CHANGE|^[a-zA-Z0-9_-]+\([^)]+\)!:|^[a-zA-Z0-9_-]+!:'; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -Eq '^feat(\([^)]+\))?:'; then
+            BUMP="minor"
+          elif echo "$COMMITS" | grep -Eq '^(fix|perf)(\([^)]+\))?:'; then
+            BUMP="patch"
+          fi
+
+          if [ -z "$BUMP" ]; then
+            echo "No releasable Conventional Commit found."
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE=${LAST_TAG#v}
+          MAJOR=$(echo "$BASE" | cut -d. -f1)
+          MINOR=$(echo "$BASE" | cut -d. -f2)
+          PATCH=$(echo "$BASE" | cut -d. -f3)
+
+          case "$BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "Computed bump: $BUMP"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create tag and push
         if: steps.semver.outputs.new_version != ''
@@ -46,12 +91,3 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v${NEW_VERSION}" -m "chore(release): v${NEW_VERSION} [skip ci]"
           git push origin "v${NEW_VERSION}"
-
-      - name: Trigger GoReleaser
-        if: steps.semver.outputs.new_version != ''
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --rm-dist --skip-announce
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
