@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/Marc0l95/hclforge/internal/cli"
+	"github.com/Marc0l95/hclforge/internal/logging"
 )
 
 func run(args []string) error {
@@ -13,6 +14,8 @@ func run(args []string) error {
 
 func main() {
 	if err := run(os.Args); err != nil {
-		log.Fatal(err)
+		logging.Default().Error("cli_exit_error", map[string]any{"error": err.Error()})
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

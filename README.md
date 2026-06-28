@@ -370,6 +370,53 @@ This keeps playbooks platform-neutral while still allowing Harness to populate v
 
 See `example_playbook/tf_harness_pipeline.yaml` for a complete template-ready playbook.
 
+## Logging and Debug Artifacts
+
+`hcl-forge` provides structured logging for both local runs and CI pipelines.
+
+Supported flags on both `plan` and `apply`:
+
+- `--verbose`: shortcut for debug-level logs
+- `--log-level`: `debug|info|warn|error`
+- `--log-format`: `text|json`
+- `--log-output`: `stderr|stdout|<file-path>`
+- `--log-artifact`: optional NDJSON artifact file for pipeline ingestion
+- `--log-redact`: comma-separated additional keys to redact (defaults already include common secret keys)
+- `--quiet`: suppress human-readable summary output and emit structured logs only
+
+Examples:
+
+```bash
+# Human-readable local logs
+go run ./cmd/hcl-forge plan \
+	-config example_playbook/tf_insert_node_config.yaml \
+	--verbose \
+	--log-format text \
+	--log-output stderr
+
+# Pipeline-friendly JSON logs + NDJSON artifact
+go run ./cmd/hcl-forge apply \
+	-config example_playbook/tf_harness_pipeline.yaml \
+	--log-level info \
+	--log-format json \
+	--log-output stdout \
+	--log-artifact ./out/hclforge-events.ndjson \
+	--log-redact session_token,db_password \
+	--quiet
+```
+
+Debug coverage includes:
+
+- command lifecycle (`plan_start`, `apply_start`, completion/failure)
+- per-file worker lifecycle (`file_job_start`, `file_job_completed`, `file_job_failed`)
+- per-edit timing (`edit_start`, `edit_completed`, `edit_failed`)
+- selector resolution traces for `insert_hcl`
+
+Every structured log event includes:
+
+- `schema_version` (currently `hclforge.log.v1`)
+- monotonic `event_id` per process run
+
 ## Publish and Install
 
 This project can be published as downloadable binaries using GitHub Releases.

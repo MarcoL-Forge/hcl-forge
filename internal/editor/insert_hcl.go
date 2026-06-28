@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/Marc0l95/hclforge/internal/logging"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
@@ -32,6 +33,12 @@ type InsertHCLEdit struct {
 }
 
 func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
+	logger := logging.Default()
+	logger.Debug("insert_hcl_start", map[string]any{
+		"has_target":    e.TargetBlock != nil,
+		"ensure_target": e.EnsureTargetBlock,
+	})
+
 	if e.HCL == "" {
 		return nil, EditResult{}, fmt.Errorf("hcl snippet cannot be empty")
 	}
@@ -49,8 +56,13 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	targetBody := file.Body()
 	createdTarget := false
 	if e.TargetBlock != nil {
+		logger.Debug("insert_hcl_resolve_target", map[string]any{
+			"type":   e.TargetBlock.Type,
+			"labels": e.TargetBlock.Labels,
+		})
 		target := findMatchingBlock(file.Body(), *e.TargetBlock)
 		if target == nil {
+			logger.Debug("insert_hcl_target_missing", map[string]any{"type": e.TargetBlock.Type, "labels": e.TargetBlock.Labels})
 			if e.Guard != nil && e.Guard.IfTargetExists {
 				return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block missing"}, nil
 			}
@@ -58,6 +70,7 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 			if e.EnsureTargetBlock {
 				target = ensureBlockPath(file.Body(), *e.TargetBlock)
 				createdTarget = true
+				logger.Debug("insert_hcl_target_created", map[string]any{"type": e.TargetBlock.Type, "labels": e.TargetBlock.Labels})
 			} else if e.Guard != nil && e.Guard.IfTargetMissing {
 				return data, EditResult{Changed: false, Occurrences: 0, Message: "guard matched: target missing and ensure_target_block=false"}, nil
 			} else {
@@ -73,6 +86,8 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	if !changed && !createdTarget {
 		return data, EditResult{Changed: false, Occurrences: 0, Message: "no snippet entries found"}, nil
 	}
+
+	logger.Debug("insert_hcl_completed", map[string]any{"changed": changed || createdTarget})
 
 	return file.Bytes(), EditResult{Changed: true, Occurrences: 1, Message: "insert hcl applied"}, nil
 }

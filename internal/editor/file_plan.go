@@ -1,10 +1,13 @@
 package editor
 
 import (
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Marc0l95/hclforge/internal/document"
+	"github.com/Marc0l95/hclforge/internal/logging"
 )
 
 type FilePlan struct {
@@ -18,6 +21,7 @@ type FilePlanResult struct {
 	OutputPath string
 	Results    []EditResult
 	Changed    bool
+	Error      string
 }
 
 type FilePlanJob struct {
@@ -71,11 +75,11 @@ func ApplyFilePlan(plan FilePlan) (FilePlanResult, error) {
 }
 
 func PlanFilePlans(plans []FilePlan, workers int) ([]FilePlanResult, error) {
-	return runFilePlans(plans, workers, PlanFilePlan)
+	return runFilePlans(plans, clampWorkers(workers, 5), PlanFilePlan)
 }
 
 func ApplyFilePlans(plans []FilePlan, workers int) ([]FilePlanResult, error) {
-	return runFilePlans(plans, workers, ApplyFilePlan)
+	return runFilePlans(plans, clampWorkers(workers, 10), ApplyFilePlan)
 }
 
 func runFilePlans(
@@ -83,10 +87,6 @@ func runFilePlans(
 	workers int,
 	fn func(FilePlan) (FilePlanResult, error),
 ) ([]FilePlanResult, error) {
-	if workers <= 0 {
-		workers = 4
-	}
-
 	if err := validateUniqueOutputPaths(plans); err != nil {
 		return nil, err
 	}
@@ -96,8 +96,9 @@ func runFilePlans(
 
 	var wg sync.WaitGroup
 
-	var firstErr error
 	var errMu sync.Mutex
+	errs := make([]error, 0)
+	logger := logging.Default()
 
 	for workerID := 0; workerID < workers; workerID++ {
 		wg.Add(1)
@@ -106,17 +107,44 @@ func runFilePlans(
 			defer wg.Done()
 
 			for job := range jobs {
+				start := time.Now()
+				logger.Debug("file_job_start", map[string]any{
+					"index":  job.Index,
+					"source": job.Plan.SourcePath,
+					"output": job.Plan.OutputPath,
+				})
+
+				result := FilePlanResult{
+					SourcePath: job.Plan.SourcePath,
+					OutputPath: job.Plan.OutputPath,
+				}
+
 				result, err := fn(job.Plan)
 				if err != nil {
+					result.Error = err.Error()
+					results[job.Index] = result
+					logger.Error("file_job_failed", map[string]any{
+						"index":       job.Index,
+						"source":      job.Plan.SourcePath,
+						"output":      job.Plan.OutputPath,
+						"error":       err.Error(),
+						"duration_ms": time.Since(start).Milliseconds(),
+					})
+
 					errMu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
+					errs = append(errs, err)
 					errMu.Unlock()
 					continue
 				}
 
 				results[job.Index] = result
+				logger.Debug("file_job_completed", map[string]any{
+					"index":       job.Index,
+					"source":      result.SourcePath,
+					"output":      result.OutputPath,
+					"changed":     result.Changed,
+					"duration_ms": time.Since(start).Milliseconds(),
+				})
 			}
 		}()
 	}
@@ -131,11 +159,23 @@ func runFilePlans(
 	close(jobs)
 	wg.Wait()
 
-	if firstErr != nil {
-		return results, firstErr
+	if len(errs) > 0 {
+		return results, fmt.Errorf("%d file plan(s) failed: %w", len(errs), errors.Join(errs...))
 	}
 
 	return results, nil
+}
+
+func clampWorkers(workers, max int) int {
+	if workers <= 0 {
+		workers = 4
+	}
+
+	if workers > max {
+		workers = max
+	}
+
+	return workers
 }
 
 func validateUniqueOutputPaths(plans []FilePlan) error {
