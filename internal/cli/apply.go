@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 
@@ -22,6 +23,9 @@ func runApply(args []string) error {
 	quiet := fs.Bool("quiet", false, "suppress human-readable output and emit logs only")
 
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 

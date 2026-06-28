@@ -21,6 +21,26 @@ func TestRun_UnknownCommand(t *testing.T) {
 	}
 }
 
+func TestRun_HelpCommand(t *testing.T) {
+	err := Run([]string{"hcl-forge", "help"})
+	if err != nil {
+		t.Fatalf("expected help command to succeed, got: %v", err)
+	}
+}
+
+func TestRun_HelpSubcommands(t *testing.T) {
+	for _, args := range [][]string{
+		{"hcl-forge", "help", "plan"},
+		{"hcl-forge", "help", "apply"},
+		{"hcl-forge", "--help"},
+		{"hcl-forge", "-h"},
+	} {
+		if err := Run(args); err != nil {
+			t.Fatalf("expected %v to succeed, got: %v", args, err)
+		}
+	}
+}
+
 func TestRun_PlanAndApplyWithConfig(t *testing.T) {
 	tmp := t.TempDir()
 	inputPath := filepath.Join(tmp, "main.tf")
