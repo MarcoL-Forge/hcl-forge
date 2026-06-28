@@ -78,17 +78,26 @@ jobs:
 
           echo "Updating labels for release PR #${PR_NUMBER}"
 
-          curl -sS -o /dev/null -w "%{http_code}" \
+          DELETE_STATUS=$(curl -sS -o /tmp/delete-label-body.json -w "%{http_code}" \
             -X DELETE \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending" \
-            | grep -Eq '^(200|204|404)$'
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending")
 
-          curl -sS -o /dev/null -w "%{http_code}" \
+          if ! echo "${DELETE_STATUS}" | grep -Eq '^(200|204|404)$'; then
+            echo "Warning: deleting autorelease: pending label returned HTTP ${DELETE_STATUS}"
+            cat /tmp/delete-label-body.json || true
+          fi
+
+          ADD_STATUS=$(curl -sS -o /tmp/add-label-body.json -w "%{http_code}" \
             -X POST \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
-            -d '{"labels":["autorelease: tagged"]}' \
-            | grep -Eq '^(200|201)$'
+            -d '{"labels":["autorelease: tagged"]}')
+
+          if ! echo "${ADD_STATUS}" | grep -Eq '^(200|201)$'; then
+            echo "Warning: adding autorelease: tagged label returned HTTP ${ADD_STATUS}"
+            cat /tmp/add-label-body.json || true
+            echo "Continuing without failing the workflow."
+          fi
