@@ -114,13 +114,14 @@ func runFilePlans(
 					"output": job.Plan.OutputPath,
 				})
 
-				result := FilePlanResult{
-					SourcePath: job.Plan.SourcePath,
-					OutputPath: job.Plan.OutputPath,
-				}
-
 				result, err := fn(job.Plan)
 				if err != nil {
+					if result.SourcePath == "" {
+						result.SourcePath = job.Plan.SourcePath
+					}
+					if result.OutputPath == "" {
+						result.OutputPath = job.Plan.OutputPath
+					}
 					result.Error = err.Error()
 					results[job.Index] = result
 					logger.Error("file_job_failed", map[string]any{

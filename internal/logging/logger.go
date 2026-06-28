@@ -66,7 +66,7 @@ func New(cfg Config) (*Logger, io.Closer, error) {
 		output = "stderr"
 	}
 
-	var out io.Writer = os.Stderr
+	var out io.Writer
 	closers := make([]io.Closer, 0, 2)
 
 	switch output {
