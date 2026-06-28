@@ -54,13 +54,17 @@ func Validate(cfg Config) error {
 			if edit.HCL == "" {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
 			}
-			if edit.Block != nil && edit.Block.SelectedType() == "" {
-				return fmt.Errorf("edits[%d]: block selector requires block_type (or type)", i)
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
 			}
 
 		case "delete_hcl":
-			if edit.Block != nil && edit.Block.SelectedType() == "" {
-				return fmt.Errorf("edits[%d]: block selector requires block_type (or type)", i)
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
 			}
 			if edit.Attribute == "" && edit.Block == nil {
 				return fmt.Errorf("edits[%d]: delete_hcl requires attribute or block", i)
@@ -68,6 +72,32 @@ func Validate(cfg Config) error {
 
 		default:
 			return fmt.Errorf("edits[%d]: unsupported edit type %q", i, edit.Type)
+		}
+	}
+
+	return nil
+}
+
+func validateBlockSelector(block BlockSelector) error {
+	if block.Path != "" {
+		if block.SelectedType() != "" || len(block.Labels) > 0 || len(block.Parents) > 0 {
+			return fmt.Errorf("block.path cannot be combined with block_type/type, labels, or parents")
+		}
+
+		if _, err := selectorFromPath(block.Path); err != nil {
+			return fmt.Errorf("invalid block.path: %w", err)
+		}
+
+		return nil
+	}
+
+	if block.SelectedType() == "" {
+		return fmt.Errorf("block selector requires block_type (or type)")
+	}
+
+	for j, parent := range block.Parents {
+		if parent.SelectedType() == "" {
+			return fmt.Errorf("block.parents[%d] requires block_type (or type)", j)
 		}
 	}
 

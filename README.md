@@ -144,6 +144,99 @@ Notes:
 - Matching is exact on `block_type` and label order.
 - If multiple blocks match, the first match found is used.
 
+### Rigorous Selector Model (Recommended Reading)
+
+`hcl-forge` supports two selector styles for `insert_hcl` and `delete_hcl`.
+
+1. Explicit selector style:
+
+```yaml
+block:
+	block_type: resource
+	labels: [google_service_account, nodes]
+	parents:
+		- block_type: module
+			labels: [gke_cluster]
+```
+
+2. Dot path selector style:
+
+```yaml
+block:
+	path: module.gke_cluster.resource.google_service_account.nodes
+```
+
+Both styles work. Dot path is compiled into the explicit selector model internally.
+
+You can mix styles across edits in the same playbook (for example, `insert_hcl` using explicit selectors and `delete_hcl` using `block.path`).
+
+Strict rules to avoid ambiguity:
+
+- If `block.path` is set, do not set `block_type`/`type`, `labels`, or `parents` in the same selector.
+- If `block.path` is not set, use explicit fields (`block_type` + `labels`, optional `parents`).
+- Matching is deterministic and exact (type + label order + parent chain).
+
+Mixed-style playbook example:
+
+```yaml
+edits:
+	- type: insert_hcl
+		block:
+			block_type: resource
+			labels: [google_service_account, nodes]
+		hcl: |
+			description = "managed"
+
+	- type: delete_hcl
+		block:
+			path: resource.google_service_account.nodes
+		attribute: description
+```
+
+#### Terraform Alignment
+
+The dot syntax is Terraform-like for block addressing and AST traversal.
+
+- Top-level block paths mirror Terraform concepts:
+	- `resource.google_service_account.nodes`
+	- `data.google_client_config.default`
+	- `module.gke_cluster`
+	- `provider.google`
+- Nested segments (for example `.node_config.shielded_instance_config`) represent AST block traversal.
+
+It does **not** currently represent arbitrary expression/object traversal such as `locals.foo.bar[0]` inside values.
+
+#### Path Grammar
+
+Supported path segments:
+
+- `resource.<type>.<name>`
+- `data.<type>.<name>`
+- `module.<name>`
+- `variable.<name>`
+- `output.<name>`
+- `provider.<name>`
+- `locals`
+- `terraform`
+- Any additional segment after those is treated as nested block traversal.
+
+Examples:
+
+```yaml
+# Exact equivalent selectors
+block:
+	path: resource.google_service_account.nodes
+
+# equals
+block:
+	block_type: resource
+	labels: [google_service_account, nodes]
+
+# Nested path
+block:
+	path: resource.google_container_node_pool.pool.node_config.shielded_instance_config
+```
+
 ## Delete HCL Edits
 
 Use `delete_hcl` to remove either:

@@ -87,6 +87,10 @@ func runFilePlans(
 		workers = 4
 	}
 
+	if err := validateUniqueOutputPaths(plans); err != nil {
+		return nil, err
+	}
+
 	jobs := make(chan FilePlanJob)
 	results := make([]FilePlanResult, len(plans))
 
@@ -132,4 +136,28 @@ func runFilePlans(
 	}
 
 	return results, nil
+}
+
+func validateUniqueOutputPaths(plans []FilePlan) error {
+	seen := make(map[string]string, len(plans))
+
+	for _, plan := range plans {
+		absOutputPath, err := document.ResolvePath(plan.OutputPath)
+		if err != nil {
+			return fmt.Errorf("resolve output path %q: %w", plan.OutputPath, err)
+		}
+
+		if existingSource, exists := seen[absOutputPath]; exists {
+			return fmt.Errorf(
+				"duplicate output path %q for source files %q and %q",
+				absOutputPath,
+				existingSource,
+				plan.SourcePath,
+			)
+		}
+
+		seen[absOutputPath] = plan.SourcePath
+	}
+
+	return nil
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/Marc0l95/hclforge/internal/config"
 	"github.com/Marc0l95/hclforge/internal/editor"
@@ -51,5 +52,19 @@ func runPlan(args []string) error {
 
 	printResults("Plan", results)
 
+	if cfg.Options.FailOnNoChange && !anyFileChanged(results) {
+		return fmt.Errorf("fail_on_no_change enabled and no changes were produced")
+	}
+
 	return nil
+}
+
+func anyFileChanged(results []editor.FilePlanResult) bool {
+	for _, result := range results {
+		if result.Changed {
+			return true
+		}
+	}
+
+	return false
 }

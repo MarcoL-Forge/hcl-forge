@@ -42,6 +42,14 @@ type EditConfig struct {
 }
 
 type BlockSelector struct {
+	Type      string           `yaml:"type"`
+	BlockType string           `yaml:"block_type"`
+	Labels    []string         `yaml:"labels"`
+	Parents   []ParentSelector `yaml:"parents"`
+	Path      string           `yaml:"path"`
+}
+
+type ParentSelector struct {
 	Type      string   `yaml:"type"`
 	BlockType string   `yaml:"block_type"`
 	Labels    []string `yaml:"labels"`
@@ -50,6 +58,16 @@ type BlockSelector struct {
 // SelectedType returns the effective selector type.
 // block_type is preferred; type is kept for backward compatibility.
 func (s BlockSelector) SelectedType() string {
+	if s.BlockType != "" {
+		return s.BlockType
+	}
+
+	return s.Type
+}
+
+// SelectedType returns the effective selector type.
+// block_type is preferred; type is kept for backward compatibility.
+func (s ParentSelector) SelectedType() string {
 	if s.BlockType != "" {
 		return s.BlockType
 	}

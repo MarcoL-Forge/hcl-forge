@@ -2,6 +2,7 @@ package cli
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/Marc0l95/hclforge/internal/config"
 	"github.com/Marc0l95/hclforge/internal/editor"
@@ -32,6 +33,10 @@ func runApply(args []string) error {
 	}
 
 	printResults("Apply", results)
+
+	if cfg.Options.FailOnNoChange && !anyFileChanged(results) {
+		return fmt.Errorf("fail_on_no_change enabled and no changes were produced")
+	}
 
 	return nil
 }

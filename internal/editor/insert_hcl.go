@@ -9,6 +9,12 @@ import (
 )
 
 type BlockSelector struct {
+	Type    string
+	Labels  []string
+	Parents []ParentSelector
+}
+
+type ParentSelector struct {
 	Type   string
 	Labels []string
 }
@@ -51,17 +57,54 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 }
 
 func findMatchingBlock(body *hclwrite.Body, selector BlockSelector) *hclwrite.Block {
+	return findMatchingBlockWithParents(body, selector, nil)
+}
+
+func findMatchingBlockWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector) *hclwrite.Block {
 	for _, block := range body.Blocks() {
-		if blockMatches(block, selector) {
+		if blockMatches(block, selector) && parentsMatch(ancestry, selector.Parents) {
 			return block
 		}
 
-		if nested := findMatchingBlock(block.Body(), selector); nested != nil {
+		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
+			Type:   block.Type(),
+			Labels: append([]string(nil), block.Labels()...),
+		})
+
+		if nested := findMatchingBlockWithParents(block.Body(), selector, nextAncestry); nested != nil {
 			return nested
 		}
 	}
 
 	return nil
+}
+
+func parentsMatch(ancestry, expected []ParentSelector) bool {
+	if len(expected) == 0 {
+		return true
+	}
+
+	if len(ancestry) != len(expected) {
+		return false
+	}
+
+	for i := range ancestry {
+		if ancestry[i].Type != expected[i].Type {
+			return false
+		}
+
+		if len(ancestry[i].Labels) != len(expected[i].Labels) {
+			return false
+		}
+
+		for j := range ancestry[i].Labels {
+			if ancestry[i].Labels[j] != expected[i].Labels[j] {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func blockMatches(block *hclwrite.Block, selector BlockSelector) bool {

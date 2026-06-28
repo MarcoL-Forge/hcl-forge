@@ -142,3 +142,42 @@ resource "google_storage_bucket" "bucket2" {
 		t.Fatalf("expected all location attributes removed, got:\n%s", out)
 	}
 }
+
+func TestDeleteHCLEdit_DeleteDeepNestedBlockWithParents(t *testing.T) {
+	input := `resource "google_container_node_pool" "pool" {
+  node_config {
+    shielded_instance_config {
+      enable_secure_boot = true
+    }
+  }
+
+  upgrade_settings {
+    max_surge = 1
+  }
+}
+`
+
+	edit := DeleteHCLEdit{
+		TargetBlock: &BlockSelector{
+			Type:   "shielded_instance_config",
+			Labels: []string{},
+			Parents: []ParentSelector{
+				{Type: "resource", Labels: []string{"google_container_node_pool", "pool"}},
+				{Type: "node_config", Labels: []string{}},
+			},
+		},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl nested block: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "shielded_instance_config {") {
+		t.Fatalf("expected nested block removed, got:\n%s", out)
+	}
+}

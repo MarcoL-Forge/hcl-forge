@@ -176,6 +176,10 @@ func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
 	if insertEdit.TargetBlock == nil || insertEdit.TargetBlock.Type != "resource" {
 		t.Fatalf("unexpected target block: %+v", insertEdit.TargetBlock)
 	}
+
+	if len(insertEdit.TargetBlock.Parents) != 0 {
+		t.Fatalf("expected no parents for target block, got %+v", insertEdit.TargetBlock.Parents)
+	}
 }
 
 func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
@@ -226,5 +230,95 @@ func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
 
 	if deleteEdit.TargetBlock == nil || deleteEdit.TargetBlock.Type != "resource" {
 		t.Fatalf("unexpected target block: %+v", deleteEdit.TargetBlock)
+	}
+}
+
+func TestBuildFilePlans_NestedParentsMapping(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type: "insert_hcl",
+			HCL:  "disk_size_gb = 100",
+			Block: &BlockSelector{
+				BlockType: "shielded_instance_config",
+				Labels:    []string{},
+				Parents: []ParentSelector{
+					{BlockType: "resource", Labels: []string{"google_container_node_pool", "pool"}},
+					{BlockType: "node_config", Labels: []string{}},
+				},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	insertEdit, ok := plans[0].Edits[0].(editor.InsertHCLEdit)
+	if !ok {
+		t.Fatalf("expected InsertHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if insertEdit.TargetBlock == nil {
+		t.Fatalf("expected target block")
+	}
+
+	if len(insertEdit.TargetBlock.Parents) != 2 {
+		t.Fatalf("expected 2 parent selectors, got %d", len(insertEdit.TargetBlock.Parents))
+	}
+
+	if insertEdit.TargetBlock.Parents[0].Type != "resource" {
+		t.Fatalf("unexpected first parent type: %q", insertEdit.TargetBlock.Parents[0].Type)
+	}
+
+	if insertEdit.TargetBlock.Parents[1].Type != "node_config" {
+		t.Fatalf("unexpected second parent type: %q", insertEdit.TargetBlock.Parents[1].Type)
+	}
+}
+
+func TestBuildFilePlans_PathSelectorMapping(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type: "delete_hcl",
+			Block: &BlockSelector{
+				Path: "resource.google_service_account.nodes",
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	deleteEdit, ok := plans[0].Edits[0].(editor.DeleteHCLEdit)
+	if !ok {
+		t.Fatalf("expected DeleteHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if deleteEdit.TargetBlock == nil {
+		t.Fatalf("expected target block")
+	}
+
+	if deleteEdit.TargetBlock.Type != "resource" {
+		t.Fatalf("unexpected target type: %q", deleteEdit.TargetBlock.Type)
+	}
+
+	if len(deleteEdit.TargetBlock.Labels) != 2 || deleteEdit.TargetBlock.Labels[0] != "google_service_account" || deleteEdit.TargetBlock.Labels[1] != "nodes" {
+		t.Fatalf("unexpected target labels: %+v", deleteEdit.TargetBlock.Labels)
 	}
 }

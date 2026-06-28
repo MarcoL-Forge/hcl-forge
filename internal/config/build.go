@@ -64,9 +64,23 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 	case "insert_hcl":
 		var targetBlock *editor.BlockSelector
 		if editCfg.Block != nil {
+			resolved, err := resolveBlockSelector(*editCfg.Block)
+			if err != nil {
+				return nil, err
+			}
+
+			parents := make([]editor.ParentSelector, 0, len(resolved.Parents))
+			for _, parent := range resolved.Parents {
+				parents = append(parents, editor.ParentSelector{
+					Type:   parent.SelectedType(),
+					Labels: append([]string(nil), parent.Labels...),
+				})
+			}
+
 			targetBlock = &editor.BlockSelector{
-				Type:   editCfg.Block.SelectedType(),
-				Labels: append([]string(nil), editCfg.Block.Labels...),
+				Type:    resolved.Type,
+				Labels:  append([]string(nil), resolved.Labels...),
+				Parents: parents,
 			}
 		}
 
@@ -78,9 +92,23 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 	case "delete_hcl":
 		var targetBlock *editor.BlockSelector
 		if editCfg.Block != nil {
+			resolved, err := resolveBlockSelector(*editCfg.Block)
+			if err != nil {
+				return nil, err
+			}
+
+			parents := make([]editor.ParentSelector, 0, len(resolved.Parents))
+			for _, parent := range resolved.Parents {
+				parents = append(parents, editor.ParentSelector{
+					Type:   parent.SelectedType(),
+					Labels: append([]string(nil), parent.Labels...),
+				})
+			}
+
 			targetBlock = &editor.BlockSelector{
-				Type:   editCfg.Block.SelectedType(),
-				Labels: append([]string(nil), editCfg.Block.Labels...),
+				Type:    resolved.Type,
+				Labels:  append([]string(nil), resolved.Labels...),
+				Parents: parents,
 			}
 		}
 
@@ -93,4 +121,16 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 	default:
 		return nil, fmt.Errorf("unsupported edit type %q", editCfg.Type)
 	}
+}
+
+func resolveBlockSelector(block BlockSelector) (resolvedSelector, error) {
+	if block.Path != "" {
+		return selectorFromPath(block.Path)
+	}
+
+	return resolvedSelector{
+		Type:    block.SelectedType(),
+		Labels:  append([]string(nil), block.Labels...),
+		Parents: append([]ParentSelector(nil), block.Parents...),
+	}, nil
 }
