@@ -23,7 +23,8 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       # ----------------------------------------------------------------------
-      # Optional: auto-approve the Release Please PR.
+      # Optional later: auto-approve the Release Please PR.
+      # Keep this commented out for now because you want manual approval.
       #
       # - name: Approve release PR
       #   if: ${{ steps.release.outputs.pr }}
@@ -31,7 +32,8 @@ jobs:
       #   env:
       #     GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
       #
-      # Optional: enable auto-merge for the Release Please PR..
+      # Optional later: enable auto-merge for the Release Please PR.
+      # Keep this commented out for now because you want manual merge.
       #
       # - name: Enable auto-merge for release PR
       #   if: ${{ steps.release.outputs.pr }}
