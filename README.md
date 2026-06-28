@@ -18,6 +18,29 @@ Core goals:
 - Support deterministic input/output routing for generated or patched files.
 - Keep the CLI dependency-light and automation-friendly.
 
+## Pre-commit Quality Checks
+
+The repository includes a git pre-commit hook that mirrors CI quality checks for formatting and linting.
+
+Install once per clone:
+
+```bash
+make precommit-install
+```
+
+What runs before every commit:
+
+- `gofmt` on staged `.go` files (auto-formats and re-stages)
+- repository-wide `gofmt` check
+- `go vet ./...`
+- `golangci-lint run ./...` (auto-installs pinned `v1.64.8` if missing)
+
+Run the same hook manually:
+
+```bash
+make precommit-run
+```
+
 ## Non-goals
 
 `hcl-forge` is not intended to replace Terraform.
