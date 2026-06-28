@@ -18,6 +18,27 @@ Core goals:
 - Support deterministic input/output routing for generated or patched files.
 - Keep the CLI dependency-light and automation-friendly.
 
+## Examples
+
+Sample Terraform inputs and playbooks are in `examples/` with three complexity levels:
+
+- `easy`: single-file edits using all operations
+- `medium`: nested selectors with guard/ensure behavior
+- `hard`: multi-file edits with target-dir output and mixed selector styles
+
+Run from repo root:
+
+```bash
+go run ./cmd/hcl-forge plan -config examples/easy/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/easy/playbook.yaml
+
+go run ./cmd/hcl-forge plan -config examples/medium/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/medium/playbook.yaml
+
+go run ./cmd/hcl-forge plan -config examples/hard/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/hard/playbook.yaml
+```
+
 ## Pre-commit Quality Checks
 
 The repository uses native `pre-commit` hooks for formatting, linting, and quality checks.
@@ -159,8 +180,8 @@ edits:
 Run it:
 
 ```bash
-go run ./cmd/hcl-forge plan -config example_playbook/tf_insert_node_config.yaml
-go run ./cmd/hcl-forge apply -config example_playbook/tf_insert_node_config.yaml
+go run ./cmd/hcl-forge plan -config examples/medium/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/medium/playbook.yaml
 ```
 
 Notes:
@@ -402,8 +423,8 @@ export HCLFORGE_OUTPUT_DIR="./out/pipeline"
 export HCLFORGE_PIPELINE_NAME="${HCLFORGE_PIPELINE_NAME:-my-pipeline}"
 export HCLFORGE_ENV="${HCLFORGE_ENV:-dev}"
 
-go run ./cmd/hcl-forge plan -config example_playbook/tf_harness_pipeline.yaml
-go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
+go run ./cmd/hcl-forge plan -config examples/hard/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/hard/playbook.yaml
 ```
 
 Harness mapping example (set generic vars from Harness expressions):
@@ -415,13 +436,13 @@ export HCLFORGE_OUTPUT_DIR="./out/<+pipeline.sequenceId>"
 export HCLFORGE_PIPELINE_NAME="<+pipeline.name>"
 export HCLFORGE_ENV="<+pipeline.variables.environment>"
 
-go run ./cmd/hcl-forge plan -config example_playbook/tf_harness_pipeline.yaml
-go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
+go run ./cmd/hcl-forge plan -config examples/hard/playbook.yaml
+go run ./cmd/hcl-forge apply -config examples/hard/playbook.yaml
 ```
 
 This keeps playbooks platform-neutral while still allowing Harness to populate values.
 
-See `example_playbook/tf_harness_pipeline.yaml` for a complete template-ready playbook.
+See `examples/hard/playbook.yaml` for a complete template-ready playbook.
 
 ## Logging and Debug Artifacts
 
@@ -442,14 +463,14 @@ Examples:
 ```bash
 # Human-readable local logs
 go run ./cmd/hcl-forge plan \
-	-config example_playbook/tf_insert_node_config.yaml \
+	-config examples/medium/playbook.yaml \
 	--verbose \
 	--log-format text \
 	--log-output stderr
 
 # Pipeline-friendly JSON logs + NDJSON artifact
 go run ./cmd/hcl-forge apply \
-	-config example_playbook/tf_harness_pipeline.yaml \
+	-config examples/hard/playbook.yaml \
 	--log-level info \
 	--log-format json \
 	--log-output stdout \
@@ -569,7 +590,7 @@ docker run --rm \
 	-e HCLFORGE_INPUT_ROOT=./testing/gke \
 	-e HCLFORGE_TARGET_FILE=storage_bucket.tf \
 	-e HCLFORGE_OUTPUT_DIR=./out/pipeline \
-	hcl-forge:local plan -config example_playbook/tf_harness_pipeline.yaml
+	hcl-forge:local plan -config examples/hard/playbook.yaml
 
 docker run --rm \
 	-v "$PWD:/work" \
@@ -577,7 +598,7 @@ docker run --rm \
 	-e HCLFORGE_INPUT_ROOT=./testing/gke \
 	-e HCLFORGE_TARGET_FILE=storage_bucket.tf \
 	-e HCLFORGE_OUTPUT_DIR=./out/pipeline \
-	hcl-forge:local apply -config example_playbook/tf_harness_pipeline.yaml
+	hcl-forge:local apply -config examples/hard/playbook.yaml
 ```
 
 If you want to use GAR for Harness + Aqua scanning, push this image from your CI:

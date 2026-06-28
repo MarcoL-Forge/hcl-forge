@@ -1,0 +1,38 @@
+version: 1
+
+input:
+  root_dir: ./examples/easy
+  files:
+    - main.tf
+
+output:
+  mode: overwrite
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  - type: search_replace
+    old: legacy-logs-bucket
+    new: prod-logs-bucket
+
+  - type: insert_hcl
+    block:
+      block_type: resource
+      labels: [google_storage_bucket, logs]
+    hcl: |
+      force_destroy = true
+
+  - type: set_attribute
+    block:
+      block_type: resource
+      labels: [google_storage_bucket, logs]
+    attribute: location
+    value_hcl: '"us-central1"'
+
+  - type: delete_hcl
+    block:
+      block_type: resource
+      labels: [google_storage_bucket, logs]
+    attribute: uniform_bucket_level_access

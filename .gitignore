@@ -52,6 +52,7 @@ output/
 outputs/
 *.generated.tf
 *.generated.tfvars
+coverage.out
 
 testing/
 example_playbook/
