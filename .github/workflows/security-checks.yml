@@ -1,0 +1,54 @@
+name: Security Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  security:
+    name: Run security scanners
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: go test ./...
+
+      - name: Install govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+      - name: Install gitleaks
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+
+      - name: Run gitleaks (secrets detection)
+        run: |
+          $(go env GOPATH)/bin/gitleaks detect --source . --report-format json
+
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t hcl-forge:pr .
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scan image with Trivy (HIGH/CRITICAL)
+        run: |
+          trivy image --severity HIGH,CRITICAL --exit-code 1 hcl-forge:pr
