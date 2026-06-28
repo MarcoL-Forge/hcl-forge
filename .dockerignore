@@ -1,0 +1,13 @@
+.git
+.gitignore
+.githooks
+.github
+.vscode
+.pre-commit-config.yaml
+.goreleaser.yaml
+coverage.out
+README.md
+LICENSE
+Makefile
+examples
+testing
