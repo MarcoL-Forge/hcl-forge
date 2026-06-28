@@ -143,10 +143,11 @@ Notes:
 
 - Matching is exact on `block_type` and label order.
 - If multiple blocks match, the first match found is used.
+- Block snippets are convergent: rerunning the same `insert_hcl` merges into matching child blocks instead of appending duplicates.
 
 ### Rigorous Selector Model (Recommended Reading)
 
-`hcl-forge` supports two selector styles for `insert_hcl` and `delete_hcl`.
+`hcl-forge` supports two selector styles for `insert_hcl`, `delete_hcl`, and `set_attribute`.
 
 1. Explicit selector style:
 
@@ -315,6 +316,34 @@ edits:
 - with `attribute`: removes every matching attribute (scope is root + nested blocks, or only matched blocks when `block` is provided)
 - with `block`: removes every matching block
 - without `delete_all` (default): removes only the first match
+- when a targeted `block` is missing for attribute deletion, the edit is a no-op (idempotent) instead of a hard failure
+
+## Set Attribute Edits
+
+Use `set_attribute` for selector-scoped AST updates without text search/replace.
+
+```yaml
+edits:
+	- type: set_attribute
+		block:
+			path: resource.google_storage_bucket.bucket
+		attribute: location
+		value_hcl: '"us-central1"'
+
+	- type: set_attribute
+		block:
+			block_type: resource
+			labels: [google_storage_bucket, bucket]
+		attribute: force_destroy
+		value_hcl: true
+		create_if_missing: true
+```
+
+Behavior:
+
+- If the target block is missing, the edit is a no-op.
+- If the attribute already has the same expression, the edit is a no-op.
+- If `create_if_missing: true`, missing attributes are created; otherwise the edit is a no-op.
 
 ## CI Pipeline Inputs
 

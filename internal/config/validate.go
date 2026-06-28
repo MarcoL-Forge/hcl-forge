@@ -79,6 +79,21 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: delete_hcl requires attribute or block", i)
 			}
 
+		case "set_attribute":
+			if edit.Attribute == "" {
+				return fmt.Errorf("edits[%d]: set_attribute requires attribute", i)
+			}
+
+			if edit.ValueHCL == "" {
+				return fmt.Errorf("edits[%d]: set_attribute requires value_hcl", i)
+			}
+
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
+			}
+
 		default:
 			return fmt.Errorf("edits[%d]: unsupported edit type %q", i, edit.Type)
 		}

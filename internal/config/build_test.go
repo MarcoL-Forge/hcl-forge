@@ -358,3 +358,44 @@ func TestBuildFilePlans_InsertHCLEditEnsureAndGuard(t *testing.T) {
 		t.Fatalf("expected guard.if_target_missing=true")
 	}
 }
+
+func TestBuildFilePlans_SetAttributeHCLEdit(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input:   InputConfig{RootDir: root, Files: []string{"main.tf"}},
+		Output:  OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:            "set_attribute",
+			Attribute:       "force_destroy",
+			ValueHCL:        "true",
+			CreateIfMissing: true,
+			Block: &BlockSelector{
+				Path: "resource.google_storage_bucket.bucket",
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	setEdit, ok := plans[0].Edits[0].(editor.SetAttributeHCLEdit)
+	if !ok {
+		t.Fatalf("expected SetAttributeHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if setEdit.Attribute != "force_destroy" {
+		t.Fatalf("unexpected attribute: %q", setEdit.Attribute)
+	}
+	if setEdit.ValueHCL != "true" {
+		t.Fatalf("unexpected value_hcl: %q", setEdit.ValueHCL)
+	}
+	if !setEdit.CreateIfMissing {
+		t.Fatalf("expected create_if_missing to be true")
+	}
+	if setEdit.TargetBlock == nil || setEdit.TargetBlock.Type != "resource" {
+		t.Fatalf("unexpected target block: %+v", setEdit.TargetBlock)
+	}
+}

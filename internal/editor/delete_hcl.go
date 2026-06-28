@@ -27,13 +27,13 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 			} else {
 				target := findMatchingBlock(file.Body(), *e.TargetBlock)
 				if target == nil {
-					return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
+					return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
 				}
 				targetBodies = []*hclwrite.Body{target.Body()}
 			}
 
 			if len(targetBodies) == 0 {
-				return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
 			}
 		} else if e.DeleteAll {
 			targetBodies = collectAllBodies(file.Body())

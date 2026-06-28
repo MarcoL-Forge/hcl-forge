@@ -232,3 +232,41 @@ func TestInsertHCLEdit_GuardIfTargetMissing_SkipsWhenExists(t *testing.T) {
 		t.Fatalf("expected unchanged input when guard skips")
 	}
 }
+
+func TestInsertHCLEdit_BlockSnippet_IsIdempotent(t *testing.T) {
+	input := `resource "google_storage_bucket" "bucket" {
+  name = "my-bucket"
+}
+`
+
+	edit := InsertHCLEdit{
+		HCL: `versioning {
+  enabled = true
+}`,
+		TargetBlock: &BlockSelector{
+			Type:   "resource",
+			Labels: []string{"google_storage_bucket", "bucket"},
+		},
+	}
+
+	firstOut, firstResult, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("first apply insert_hcl: %v", err)
+	}
+	if !firstResult.Changed {
+		t.Fatalf("expected first apply to change file")
+	}
+
+	secondOut, secondResult, err := edit.Apply(firstOut)
+	if err != nil {
+		t.Fatalf("second apply insert_hcl: %v", err)
+	}
+	if secondResult.Changed {
+		t.Fatalf("expected second apply to be idempotent")
+	}
+
+	out := string(secondOut)
+	if strings.Count(out, "versioning {") != 1 {
+		t.Fatalf("expected single versioning block after rerun, got:\n%s", out)
+	}
+}

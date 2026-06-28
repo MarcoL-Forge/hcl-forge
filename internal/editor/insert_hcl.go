@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 
@@ -222,11 +223,25 @@ func applyBodyEntries(target, source *hclwrite.Body) bool {
 
 	for _, name := range attributeNames {
 		attr := attributes[name]
-		target.SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
+		newTokens := attr.Expr().BuildTokens(nil)
+		existing := target.GetAttribute(name)
+		if existing != nil && tokensEqual(existing.Expr().BuildTokens(nil), newTokens) {
+			continue
+		}
+
+		target.SetAttributeRaw(name, newTokens)
 		changed = true
 	}
 
 	for _, block := range source.Blocks() {
+		existing := findDirectMatchingBlock(target, block.Type(), block.Labels())
+		if existing != nil {
+			if applyBodyEntries(existing.Body(), block.Body()) {
+				changed = true
+			}
+			continue
+		}
+
 		// Ensure appended blocks are separated from existing content.
 		target.AppendNewline()
 		cloneBlock(target, block)
@@ -239,4 +254,8 @@ func applyBodyEntries(target, source *hclwrite.Body) bool {
 func cloneBlock(target *hclwrite.Body, source *hclwrite.Block) {
 	newBlock := target.AppendNewBlock(source.Type(), source.Labels())
 	applyBodyEntries(newBlock.Body(), source.Body())
+}
+
+func tokensEqual(a, b hclwrite.Tokens) bool {
+	return bytes.Equal(a.Bytes(), b.Bytes())
 }

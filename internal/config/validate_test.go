@@ -187,6 +187,29 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: true},
+		{name: "set_attribute valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:            "set_attribute",
+				Attribute:       "force_destroy",
+				ValueHCL:        "true",
+				CreateIfMissing: true,
+				Block: &BlockSelector{
+					Path: "resource.google_storage_bucket.bucket",
+				},
+			}}
+		}, wantErr: false},
+		{name: "set_attribute missing attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:     "set_attribute",
+				ValueHCL: "true",
+			}}
+		}, wantErr: true},
+		{name: "set_attribute missing value_hcl", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "set_attribute",
+				Attribute: "force_destroy",
+			}}
+		}, wantErr: true},
 	}
 
 	for _, tt := range tests {

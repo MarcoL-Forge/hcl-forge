@@ -181,3 +181,29 @@ func TestDeleteHCLEdit_DeleteDeepNestedBlockWithParents(t *testing.T) {
 		t.Fatalf("expected nested block removed, got:\n%s", out)
 	}
 }
+
+func TestDeleteHCLEdit_DeleteAttributeMissingTarget_IsNoOp(t *testing.T) {
+	input := `resource "google_storage_bucket" "bucket" {
+  name = "my-bucket"
+}
+`
+
+	edit := DeleteHCLEdit{
+		TargetBlock: &BlockSelector{Type: "resource", Labels: []string{"google_storage_bucket", "missing"}},
+		Attribute:   "name",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("expected no error when target block is missing, got: %v", err)
+	}
+	if result.Changed {
+		t.Fatalf("expected no change for missing target")
+	}
+	if !strings.Contains(result.Message, "target block not found") {
+		t.Fatalf("unexpected result message: %q", result.Message)
+	}
+	if string(updated) != input {
+		t.Fatalf("expected input to remain unchanged")
+	}
+}

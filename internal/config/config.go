@@ -38,6 +38,10 @@ type EditConfig struct {
 	// delete_hcl
 	DeleteAll bool `yaml:"delete_all"`
 
+	// set_attribute
+	ValueHCL        string `yaml:"value_hcl"`
+	CreateIfMissing bool   `yaml:"create_if_missing"`
+
 	// future HCL-aware edits
 	Block     *BlockSelector `yaml:"block"`
 	Attribute string         `yaml:"attribute"`

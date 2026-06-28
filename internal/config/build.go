@@ -123,6 +123,36 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 			DeleteAll:   editCfg.DeleteAll,
 		}, nil
 
+	case "set_attribute":
+		var targetBlock *editor.BlockSelector
+		if editCfg.Block != nil {
+			resolved, err := resolveBlockSelector(*editCfg.Block)
+			if err != nil {
+				return nil, err
+			}
+
+			parents := make([]editor.ParentSelector, 0, len(resolved.Parents))
+			for _, parent := range resolved.Parents {
+				parents = append(parents, editor.ParentSelector{
+					Type:   parent.SelectedType(),
+					Labels: append([]string(nil), parent.Labels...),
+				})
+			}
+
+			targetBlock = &editor.BlockSelector{
+				Type:    resolved.Type,
+				Labels:  append([]string(nil), resolved.Labels...),
+				Parents: parents,
+			}
+		}
+
+		return editor.SetAttributeHCLEdit{
+			TargetBlock:     targetBlock,
+			Attribute:       editCfg.Attribute,
+			ValueHCL:        editCfg.ValueHCL,
+			CreateIfMissing: editCfg.CreateIfMissing,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported edit type %q", editCfg.Type)
 	}
