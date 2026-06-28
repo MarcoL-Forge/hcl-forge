@@ -1,0 +1,43 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create or update release PR
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      # ----------------------------------------------------------------------
+      # Optional later: auto-approve the Release Please PR.
+      # Keep this commented out for now because you want manual approval.
+      #
+      # - name: Approve release PR
+      #   if: ${{ steps.release.outputs.pr }}
+      #   run: gh pr review ${{ fromJson(steps.release.outputs.pr).number }} --approve
+      #   env:
+      #     GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      #
+      # Optional later: enable auto-merge for the Release Please PR.
+      # Keep this commented out for now because you want manual merge.
+      #
+      # - name: Enable auto-merge for release PR
+      #   if: ${{ steps.release.outputs.pr }}
+      #   run: gh pr merge ${{ fromJson(steps.release.outputs.pr).number }} --squash --auto
+      #   env:
+      #     GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      # ----------------------------------------------------------------------

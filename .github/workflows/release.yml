@@ -4,63 +4,32 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   goreleaser:
-    name: Build artifacts and create draft release
+    name: GoReleaser
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
-      - name: Resolve release tag
-        id: resolve_tag
-        run: |
-          git fetch --tags
-
-          TAG=""
-          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
-          fi
-
-          if [ -z "$TAG" ]; then
-            echo "No existing v* tag found to release."
-            exit 1
-          fi
-
-          if ! git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Resolved tag does not exist: ${TAG}"
-            exit 1
-          fi
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout release tag
-        run: |
-          git checkout "refs/tags/${{ steps.resolve_tag.outputs.tag }}"
-          git describe --tags --exact-match
-          echo "Releasing from tag ${{ steps.resolve_tag.outputs.tag }}"
-
       - name: Setup Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Run tests
-        run: go test ./...
-
-      - name: Release
-        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           distribution: goreleaser
-          version: ~> v2
-          args: release --clean --draft
+          version: "~> v2"
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
