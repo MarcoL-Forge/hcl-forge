@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   release-pr:
@@ -24,10 +25,15 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.pr != '' }}
+        if: ${{ steps.release.outputs.pr != '' && steps.release.outputs.pr != 'null' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r 'if type=="array" then .[0].number else .number end // empty')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "release-please did not return a PR number; skipping auto-merge"
+            exit 0
+          fi
           echo "Enabling auto-merge for release PR #${PR_NUMBER}"
           gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch
