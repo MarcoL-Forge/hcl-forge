@@ -7,7 +7,6 @@ import (
 	"github.com/Marc0l95/hclforge/internal/editor"
 )
 
-
 type FilePlan struct {
 	SourcePath string
 	OutputPath string
