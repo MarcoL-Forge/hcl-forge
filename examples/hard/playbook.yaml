@@ -1,0 +1,45 @@
+version: 1
+
+input:
+  root_dir: ./examples/hard
+  files:
+    - main.tf
+    - modules/gke_cluster/main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/hard/out
+
+options:
+  workers: 4
+  fail_on_no_change: false
+
+edits:
+  - type: search_replace
+    old: legacy-project
+    new: prod-project
+
+  - type: insert_hcl
+    ensure_target_block: true
+    guard:
+      if_target_missing: true
+    block:
+      block_type: shielded_instance_config
+      labels: []
+      parents:
+        - block_type: resource
+          labels: [google_container_node_pool, primary]
+        - block_type: node_config
+          labels: []
+    hcl: |
+      enable_integrity_monitoring = true
+
+  - type: set_attribute
+    block:
+      path: module.gke_cluster
+    attribute: node_count
+    value_hcl: "3"
+
+  - type: delete_hcl
+    block:
+      path: resource.google_container_node_pool.primary.management

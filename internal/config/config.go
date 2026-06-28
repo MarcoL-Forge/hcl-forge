@@ -31,17 +31,36 @@ type EditConfig struct {
 	New string `yaml:"new"`
 
 	// insert_hcl
-	HCL string `yaml:"hcl"`
+	HCL               string       `yaml:"hcl"`
+	EnsureTargetBlock bool         `yaml:"ensure_target_block"`
+	Guard             *GuardConfig `yaml:"guard"`
 
 	// delete_hcl
 	DeleteAll bool `yaml:"delete_all"`
+
+	// set_attribute
+	ValueHCL        string `yaml:"value_hcl"`
+	CreateIfMissing bool   `yaml:"create_if_missing"`
 
 	// future HCL-aware edits
 	Block     *BlockSelector `yaml:"block"`
 	Attribute string         `yaml:"attribute"`
 }
 
+type GuardConfig struct {
+	IfTargetExists  bool `yaml:"if_target_exists"`
+	IfTargetMissing bool `yaml:"if_target_missing"`
+}
+
 type BlockSelector struct {
+	Type      string           `yaml:"type"`
+	BlockType string           `yaml:"block_type"`
+	Labels    []string         `yaml:"labels"`
+	Parents   []ParentSelector `yaml:"parents"`
+	Path      string           `yaml:"path"`
+}
+
+type ParentSelector struct {
 	Type      string   `yaml:"type"`
 	BlockType string   `yaml:"block_type"`
 	Labels    []string `yaml:"labels"`
@@ -50,6 +69,16 @@ type BlockSelector struct {
 // SelectedType returns the effective selector type.
 // block_type is preferred; type is kept for backward compatibility.
 func (s BlockSelector) SelectedType() string {
+	if s.BlockType != "" {
+		return s.BlockType
+	}
+
+	return s.Type
+}
+
+// SelectedType returns the effective selector type.
+// block_type is preferred; type is kept for backward compatibility.
+func (s ParentSelector) SelectedType() string {
 	if s.BlockType != "" {
 		return s.BlockType
 	}

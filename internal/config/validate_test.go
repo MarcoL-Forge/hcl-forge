@@ -76,6 +76,74 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: false},
+		{name: "insert_hcl path selector accepted", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: false},
+		{name: "insert_hcl path cannot mix with explicit selector", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path:      "resource.google_service_account.nodes",
+					BlockType: "resource",
+				},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl ensure requires block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:              "insert_hcl",
+				HCL:               "force_destroy = true",
+				EnsureTargetBlock: true,
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl guard requires block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:  "insert_hcl",
+				HCL:   "force_destroy = true",
+				Guard: &GuardConfig{IfTargetExists: true},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl conflicting guard conditions", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Guard: &GuardConfig{
+					IfTargetExists:  true,
+					IfTargetMissing: true,
+				},
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl guard valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:              "insert_hcl",
+				HCL:               "force_destroy = true",
+				EnsureTargetBlock: true,
+				Guard:             &GuardConfig{IfTargetMissing: true},
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: false},
+		{name: "insert_hcl parent missing type", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					BlockType: "node_config",
+					Labels:    []string{},
+					Parents:   []ParentSelector{{Type: "", BlockType: "", Labels: []string{"x"}}},
+				},
+			}}
+		}, wantErr: true},
 		{name: "delete_hcl with attribute", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{
 				Type:      "delete_hcl",
@@ -101,6 +169,47 @@ func TestValidate(t *testing.T) {
 				DeleteAll: true,
 			}}
 		}, wantErr: false},
+		{name: "delete_hcl path selector accepted", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "delete_hcl",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: false},
+		{name: "delete_hcl parent missing type", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "delete_hcl",
+				Block: &BlockSelector{
+					BlockType: "variable",
+					Labels:    []string{"project_id"},
+					Parents:   []ParentSelector{{Type: "", BlockType: "", Labels: []string{"x"}}},
+				},
+			}}
+		}, wantErr: true},
+		{name: "set_attribute valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:            "set_attribute",
+				Attribute:       "force_destroy",
+				ValueHCL:        "true",
+				CreateIfMissing: true,
+				Block: &BlockSelector{
+					Path: "resource.google_storage_bucket.bucket",
+				},
+			}}
+		}, wantErr: false},
+		{name: "set_attribute missing attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:     "set_attribute",
+				ValueHCL: "true",
+			}}
+		}, wantErr: true},
+		{name: "set_attribute missing value_hcl", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "set_attribute",
+				Attribute: "force_destroy",
+			}}
+		}, wantErr: true},
 	}
 
 	for _, tt := range tests {
