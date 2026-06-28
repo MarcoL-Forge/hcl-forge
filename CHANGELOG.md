@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3](https://github.com/MarcoL-Forge/hcl-forge/compare/v0.4.2...v0.4.3) (2026-06-28)
+
+
+### Bug Fixes
+
+* Fix flow ([0868bb9](https://github.com/MarcoL-Forge/hcl-forge/commit/0868bb92c8586923720c5fac2eaa7c03890e1c2e))
+* Fix flow ([#37](https://github.com/MarcoL-Forge/hcl-forge/issues/37)) ([0868bb9](https://github.com/MarcoL-Forge/hcl-forge/commit/0868bb92c8586923720c5fac2eaa7c03890e1c2e))
+
 ## [0.4.2](https://github.com/MarcoL-Forge/hcl-forge/compare/v0.4.1...v0.4.2) (2026-06-28)
 
 
