@@ -1,19 +1,39 @@
 name: release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release manually (for example v0.2.0)"
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   goreleaser:
+    name: Publish release artifacts
     runs-on: ubuntu-latest
+    env:
+      RELEASE_REF: ${{ inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.RELEASE_REF }}
           fetch-depth: 0
+
+      - name: Validate release ref
+        run: |
+          if ! git describe --tags --exact-match >/dev/null 2>&1; then
+            echo "Release ref is not an exact tag checkout: ${{ env.RELEASE_REF }}"
+            exit 1
+          fi
+          echo "Releasing from tag $(git describe --tags --exact-match)"
 
       - name: Setup Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
