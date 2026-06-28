@@ -10,6 +10,8 @@ jobs:
   release-pr:
     name: Create and auto-merge release PR
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
     permissions:
       contents: write
       pull-requests: write
@@ -21,12 +23,12 @@ jobs:
         with:
           release-type: simple
           target-branch: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.RELEASE_TOKEN }}
 
       - name: Enable auto-merge for release PR
         if: ${{ steps.release.outputs.pr != '' && steps.release.outputs.pr != 'null' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ env.RELEASE_TOKEN }}
           PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           PR_NUMBER=$(echo "$PR_JSON" | jq -r 'if type=="array" then .[0].number else .number end // empty')
