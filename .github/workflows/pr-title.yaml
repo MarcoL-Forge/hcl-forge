@@ -29,3 +29,5 @@ jobs:
             refactor
             chore
             revert
+            ci
+            build
