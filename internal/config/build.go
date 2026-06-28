@@ -27,7 +27,7 @@ func BuildFilePlans(cfg Config) ([]editor.FilePlan, error) {
 			return nil, fmt.Errorf("resolve source path %q: %w", file, err)
 		}
 
-		outputPath := sourcePath
+		var outputPath string
 
 		switch cfg.Output.Mode {
 		case "overwrite":
