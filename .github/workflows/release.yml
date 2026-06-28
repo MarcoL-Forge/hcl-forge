@@ -18,22 +18,43 @@ jobs:
   goreleaser:
     name: Publish release artifacts
     runs-on: ubuntu-latest
-    env:
-      RELEASE_REF: ${{ inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ env.RELEASE_REF }}
           fetch-depth: 0
 
-      - name: Validate release ref
+      - name: Resolve release tag
+        id: resolve_tag
         run: |
-          if ! git describe --tags --exact-match >/dev/null 2>&1; then
-            echo "Release ref is not an exact tag checkout: ${{ env.RELEASE_REF }}"
+          git fetch --tags
+
+          TAG=""
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "No release tag provided and no existing v* tag found."
             exit 1
           fi
-          echo "Releasing from tag $(git describe --tags --exact-match)"
+
+          if ! git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Resolved tag does not exist: ${TAG}"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        run: |
+          git checkout "refs/tags/${{ steps.resolve_tag.outputs.tag }}"
+          git describe --tags --exact-match
+          echo "Releasing from tag ${{ steps.resolve_tag.outputs.tag }}"
 
       - name: Setup Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
