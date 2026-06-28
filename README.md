@@ -511,22 +511,23 @@ Install prebuilt binaries:
 
 ### Maintainer release flow
 
-Release workflows are currently **manual-only** (`workflow_dispatch`) for controlled rollout.
+Release is automated from `main` merges via release PRs.
 
 Production release files:
 
-- `.github/workflows/semantic-release.yml`: computes next semantic version from Conventional Commits and creates/pushes a `vX.Y.Z` tag.
-- `.github/workflows/release.yml`: runs GoReleaser to publish release artifacts.
+- `.github/workflows/release-pr.yml`: creates/updates a release PR from commits on `main` and enables auto-merge.
+- `.github/workflows/release.yml`: publishes GoReleaser artifacts when a `v*` tag is pushed (or manually for a specific tag).
 - `.goreleaser.yaml`: build/archive/changelog configuration.
 
 Recommended release runbook:
 
 1. Ensure `main` is green (`tests` and `Security Checks` workflows passing).
-2. Run `Semantic Release (Conventional Commits)` manually from GitHub Actions.
-3. Verify the new `vX.Y.Z` tag exists.
-4. Run `release` workflow manually, selecting the new tag as the ref.
+2. Merge changes to `main` using Conventional Commits.
+3. `release-pr` opens/updates a release PR and enables auto-merge.
+4. When merged, release-please creates/pushes the `vX.Y.Z` tag.
+5. Tag push triggers `release` workflow, which publishes release assets via GoReleaser.
 
-Conventional Commit bump rules used by semantic release:
+Conventional Commit bump rules used by release-please:
 
 - major: `BREAKING CHANGE` footer or `!` in commit type
 - minor: `feat:`
