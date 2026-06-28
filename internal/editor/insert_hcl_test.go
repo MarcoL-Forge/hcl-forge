@@ -145,3 +145,90 @@ func TestInsertHCLEdit_Apply_ToDeepNestedBlockWithParents(t *testing.T) {
 		t.Fatalf("expected inserted attribute in deeply nested target block, got:\n%s", out)
 	}
 }
+
+func TestInsertHCLEdit_EnsureTargetBlock_CreatesMissingTarget(t *testing.T) {
+	input := `resource "google_container_node_pool" "pool" {
+  node_config {}
+}
+`
+
+	edit := InsertHCLEdit{
+		HCL:               `enable_secure_boot = true`,
+		EnsureTargetBlock: true,
+		TargetBlock: &BlockSelector{
+			Type:   "shielded_instance_config",
+			Labels: []string{},
+			Parents: []ParentSelector{
+				{Type: "resource", Labels: []string{"google_container_node_pool", "pool"}},
+				{Type: "node_config", Labels: []string{}},
+			},
+		},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply insert_hcl ensure target: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, "shielded_instance_config") {
+		t.Fatalf("expected created target block, got:\n%s", out)
+	}
+	if !strings.Contains(out, "enable_secure_boot") {
+		t.Fatalf("expected inserted attribute in created block, got:\n%s", out)
+	}
+}
+
+func TestInsertHCLEdit_GuardIfTargetExists_SkipsWhenMissing(t *testing.T) {
+	input := `resource "google_storage_bucket" "bucket" {}`
+
+	edit := InsertHCLEdit{
+		HCL: `force_destroy = true`,
+		TargetBlock: &BlockSelector{
+			Type:   "resource",
+			Labels: []string{"google_storage_bucket", "missing"},
+		},
+		Guard: &InsertGuard{IfTargetExists: true},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("expected guard skip, got error: %v", err)
+	}
+	if result.Changed {
+		t.Fatalf("expected no change when guard skips")
+	}
+	if string(updated) != input {
+		t.Fatalf("expected unchanged input when guard skips")
+	}
+}
+
+func TestInsertHCLEdit_GuardIfTargetMissing_SkipsWhenExists(t *testing.T) {
+	input := `resource "google_storage_bucket" "bucket" {
+  name = "my-bucket"
+}
+`
+
+	edit := InsertHCLEdit{
+		HCL: `force_destroy = true`,
+		TargetBlock: &BlockSelector{
+			Type:   "resource",
+			Labels: []string{"google_storage_bucket", "bucket"},
+		},
+		Guard: &InsertGuard{IfTargetMissing: true},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("expected guard skip, got error: %v", err)
+	}
+	if result.Changed {
+		t.Fatalf("expected no change when guard skips")
+	}
+	if string(updated) != input {
+		t.Fatalf("expected unchanged input when guard skips")
+	}
+}

@@ -31,7 +31,9 @@ type EditConfig struct {
 	New string `yaml:"new"`
 
 	// insert_hcl
-	HCL string `yaml:"hcl"`
+	HCL               string       `yaml:"hcl"`
+	EnsureTargetBlock bool         `yaml:"ensure_target_block"`
+	Guard             *GuardConfig `yaml:"guard"`
 
 	// delete_hcl
 	DeleteAll bool `yaml:"delete_all"`
@@ -39,6 +41,11 @@ type EditConfig struct {
 	// future HCL-aware edits
 	Block     *BlockSelector `yaml:"block"`
 	Attribute string         `yaml:"attribute"`
+}
+
+type GuardConfig struct {
+	IfTargetExists  bool `yaml:"if_target_exists"`
+	IfTargetMissing bool `yaml:"if_target_missing"`
 }
 
 type BlockSelector struct {

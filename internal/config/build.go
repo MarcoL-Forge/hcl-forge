@@ -85,8 +85,13 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 		}
 
 		return editor.InsertHCLEdit{
-			HCL:         editCfg.HCL,
-			TargetBlock: targetBlock,
+			HCL:               editCfg.HCL,
+			TargetBlock:       targetBlock,
+			EnsureTargetBlock: editCfg.EnsureTargetBlock,
+			Guard: &editor.InsertGuard{
+				IfTargetExists:  editCfg.Guard != nil && editCfg.Guard.IfTargetExists,
+				IfTargetMissing: editCfg.Guard != nil && editCfg.Guard.IfTargetMissing,
+			},
 		}, nil
 
 	case "delete_hcl":

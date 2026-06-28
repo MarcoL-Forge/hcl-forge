@@ -19,9 +19,16 @@ type ParentSelector struct {
 	Labels []string
 }
 
+type InsertGuard struct {
+	IfTargetExists  bool
+	IfTargetMissing bool
+}
+
 type InsertHCLEdit struct {
-	HCL         string
-	TargetBlock *BlockSelector
+	HCL               string
+	TargetBlock       *BlockSelector
+	EnsureTargetBlock bool
+	Guard             *InsertGuard
 }
 
 func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
@@ -40,20 +47,82 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	}
 
 	targetBody := file.Body()
+	createdTarget := false
 	if e.TargetBlock != nil {
 		target := findMatchingBlock(file.Body(), *e.TargetBlock)
 		if target == nil {
-			return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
+			if e.Guard != nil && e.Guard.IfTargetExists {
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block missing"}, nil
+			}
+
+			if e.EnsureTargetBlock {
+				target = ensureBlockPath(file.Body(), *e.TargetBlock)
+				createdTarget = true
+			} else if e.Guard != nil && e.Guard.IfTargetMissing {
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "guard matched: target missing and ensure_target_block=false"}, nil
+			} else {
+				return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
+			}
+		} else if e.Guard != nil && e.Guard.IfTargetMissing {
+			return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block exists"}, nil
 		}
 		targetBody = target.Body()
 	}
 
 	changed := applyBodyEntries(targetBody, snippetFile.Body())
-	if !changed {
+	if !changed && !createdTarget {
 		return data, EditResult{Changed: false, Occurrences: 0, Message: "no snippet entries found"}, nil
 	}
 
 	return file.Bytes(), EditResult{Changed: true, Occurrences: 1, Message: "insert hcl applied"}, nil
+}
+
+func ensureBlockPath(root *hclwrite.Body, selector BlockSelector) *hclwrite.Block {
+	current := root
+
+	for _, parent := range selector.Parents {
+		block := findDirectMatchingBlock(current, parent.Type, parent.Labels)
+		if block == nil {
+			current.AppendNewline()
+			block = current.AppendNewBlock(parent.Type, parent.Labels)
+		}
+		current = block.Body()
+	}
+
+	target := findDirectMatchingBlock(current, selector.Type, selector.Labels)
+	if target == nil {
+		current.AppendNewline()
+		target = current.AppendNewBlock(selector.Type, selector.Labels)
+	}
+
+	return target
+}
+
+func findDirectMatchingBlock(body *hclwrite.Body, blockType string, labels []string) *hclwrite.Block {
+	for _, block := range body.Blocks() {
+		if block.Type() != blockType {
+			continue
+		}
+
+		blockLabels := block.Labels()
+		if len(blockLabels) != len(labels) {
+			continue
+		}
+
+		matched := true
+		for i := range blockLabels {
+			if blockLabels[i] != labels[i] {
+				matched = false
+				break
+			}
+		}
+
+		if matched {
+			return block
+		}
+	}
+
+	return nil
 }
 
 func findMatchingBlock(body *hclwrite.Body, selector BlockSelector) *hclwrite.Block {

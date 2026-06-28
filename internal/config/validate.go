@@ -54,6 +54,15 @@ func Validate(cfg Config) error {
 			if edit.HCL == "" {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
 			}
+
+			if edit.Guard != nil && edit.Guard.IfTargetExists && edit.Guard.IfTargetMissing {
+				return fmt.Errorf("edits[%d]: guard.if_target_exists and guard.if_target_missing cannot both be true", i)
+			}
+
+			if (edit.EnsureTargetBlock || edit.Guard != nil) && edit.Block == nil {
+				return fmt.Errorf("edits[%d]: insert_hcl ensure/guard requires block selector", i)
+			}
+
 			if edit.Block != nil {
 				if err := validateBlockSelector(*edit.Block); err != nil {
 					return fmt.Errorf("edits[%d]: %w", i, err)

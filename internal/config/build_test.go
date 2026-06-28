@@ -322,3 +322,39 @@ func TestBuildFilePlans_PathSelectorMapping(t *testing.T) {
 		t.Fatalf("unexpected target labels: %+v", deleteEdit.TargetBlock.Labels)
 	}
 }
+
+func TestBuildFilePlans_InsertHCLEditEnsureAndGuard(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input:   InputConfig{RootDir: root, Files: []string{"main.tf"}},
+		Output:  OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:              "insert_hcl",
+			HCL:               "description = \"managed\"",
+			EnsureTargetBlock: true,
+			Guard:             &GuardConfig{IfTargetMissing: true},
+			Block: &BlockSelector{
+				Path: "resource.google_service_account.nodes",
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	insertEdit, ok := plans[0].Edits[0].(editor.InsertHCLEdit)
+	if !ok {
+		t.Fatalf("expected InsertHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if !insertEdit.EnsureTargetBlock {
+		t.Fatalf("expected ensure_target_block=true")
+	}
+
+	if insertEdit.Guard == nil || !insertEdit.Guard.IfTargetMissing {
+		t.Fatalf("expected guard.if_target_missing=true")
+	}
+}

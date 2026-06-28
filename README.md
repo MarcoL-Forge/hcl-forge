@@ -170,11 +170,33 @@ Both styles work. Dot path is compiled into the explicit selector model internal
 
 You can mix styles across edits in the same playbook (for example, `insert_hcl` using explicit selectors and `delete_hcl` using `block.path`).
 
+`insert_hcl` also supports guarded and ensure semantics:
+
+- `ensure_target_block: true`: create missing target block path before inserting snippet entries.
+- `guard.if_target_exists: true`: apply only when target block already exists.
+- `guard.if_target_missing: true`: apply only when target block is missing.
+
+Guarded + ensure example:
+
+```yaml
+edits:
+	- type: insert_hcl
+		ensure_target_block: true
+		guard:
+			if_target_missing: true
+		block:
+			path: resource.google_container_node_pool.pool.node_config.shielded_instance_config
+		hcl: |
+			enable_secure_boot = true
+```
+
 Strict rules to avoid ambiguity:
 
 - If `block.path` is set, do not set `block_type`/`type`, `labels`, or `parents` in the same selector.
 - If `block.path` is not set, use explicit fields (`block_type` + `labels`, optional `parents`).
 - Matching is deterministic and exact (type + label order + parent chain).
+- `guard.if_target_exists` and `guard.if_target_missing` cannot both be true.
+- `ensure_target_block` and `guard` require a `block` selector.
 
 Mixed-style playbook example:
 

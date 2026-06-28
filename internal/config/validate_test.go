@@ -95,6 +95,44 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: true},
+		{name: "insert_hcl ensure requires block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:              "insert_hcl",
+				HCL:               "force_destroy = true",
+				EnsureTargetBlock: true,
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl guard requires block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:  "insert_hcl",
+				HCL:   "force_destroy = true",
+				Guard: &GuardConfig{IfTargetExists: true},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl conflicting guard conditions", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Guard: &GuardConfig{
+					IfTargetExists:  true,
+					IfTargetMissing: true,
+				},
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl guard valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:              "insert_hcl",
+				HCL:               "force_destroy = true",
+				EnsureTargetBlock: true,
+				Guard:             &GuardConfig{IfTargetMissing: true},
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+			}}
+		}, wantErr: false},
 		{name: "insert_hcl parent missing type", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{
 				Type: "insert_hcl",
