@@ -29,6 +29,7 @@ jobs:
         if: ${{ steps.release.outputs.pr != '' && steps.release.outputs.pr != 'null' }}
         env:
           GH_TOKEN: ${{ env.RELEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           PR_NUMBER=$(echo "$PR_JSON" | jq -r 'if type=="array" then .[0].number else .number end // empty')
@@ -37,4 +38,4 @@ jobs:
             exit 0
           fi
           echo "Enabling auto-merge for release PR #${PR_NUMBER}"
-          gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch
+          gh pr merge "${PR_NUMBER}" --repo "${GH_REPO}" --auto --squash --delete-branch
