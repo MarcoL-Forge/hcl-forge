@@ -56,16 +56,21 @@ jobs:
 
       - name: Mark release PR as tagged
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LABEL_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           REPO: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
+          if [ -z "${LABEL_TOKEN}" ]; then
+            echo "RELEASE_PLEASE_TOKEN is not set. Skipping label update."
+            exit 0
+          fi
+
           TITLE="chore(main): release ${VERSION}"
 
           PR_NUMBER=$(curl -sS \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Authorization: Bearer ${LABEL_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/pulls?state=closed&base=main&per_page=100" \
             | jq -r --arg title "$TITLE" '.[] | select(.title == $title and .merged_at != null) | .number' \
@@ -80,7 +85,7 @@ jobs:
 
           DELETE_STATUS=$(curl -sS -o /tmp/delete-label-body.json -w "%{http_code}" \
             -X DELETE \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Authorization: Bearer ${LABEL_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending")
 
@@ -91,7 +96,7 @@ jobs:
 
           ADD_STATUS=$(curl -sS -o /tmp/add-label-body.json -w "%{http_code}" \
             -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Authorization: Bearer ${LABEL_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
             -d '{"labels":["autorelease: tagged"]}')
