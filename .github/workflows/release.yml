@@ -8,7 +8,7 @@ on:
 
 jobs:
   goreleaser:
-    name: Publish release artifacts
+    name: Build artifacts and create draft release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,6 +61,6 @@ jobs:
         with:
           distribution: goreleaser
           version: ~> v2
-          args: release --clean
+          args: release --clean --draft
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

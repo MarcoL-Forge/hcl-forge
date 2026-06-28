@@ -8,7 +8,7 @@ on:
 
 jobs:
   release-pr:
-    name: Create and auto-merge release PR
+    name: Create release PR
     runs-on: ubuntu-latest
     env:
       RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
@@ -23,19 +23,5 @@ jobs:
         with:
           release-type: simple
           target-branch: main
+          skip-github-release: true
           token: ${{ env.RELEASE_TOKEN }}
-
-      - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.pr != '' && steps.release.outputs.pr != 'null' }}
-        env:
-          GH_TOKEN: ${{ env.RELEASE_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          PR_JSON: ${{ steps.release.outputs.pr }}
-        run: |
-          PR_NUMBER=$(echo "$PR_JSON" | jq -r 'if type=="array" then .[0].number else .number end // empty')
-          if [ -z "$PR_NUMBER" ]; then
-            echo "release-please did not return a PR number; skipping auto-merge"
-            exit 0
-          fi
-          echo "Enabling auto-merge for release PR #${PR_NUMBER}"
-          gh pr merge "${PR_NUMBER}" --repo "${GH_REPO}" --auto --squash --delete-branch
