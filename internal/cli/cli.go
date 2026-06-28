@@ -17,6 +17,5 @@ func Run(args []string) error {
 	default:
 		return fmt.Errorf("unknown command: %s", args[1])
 	}
-	
 
 }

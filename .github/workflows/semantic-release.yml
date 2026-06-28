@@ -1,9 +1,7 @@
 name: Semantic Release (Conventional Commits)
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: semantic-release-main

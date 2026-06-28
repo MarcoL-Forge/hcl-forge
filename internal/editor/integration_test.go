@@ -12,23 +12,14 @@ import (
 // Integration test: copy a real fixture file, run ApplyFilePlans with a
 // SearchReplaceEdit and assert the output file is written and changed.
 func TestApplyFilePlans_Integration(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get working directory: %v", err)
-	}
-
-	// go test runs this package from internal/editor, so walk up to repo root.
-	fixture := filepath.Clean(filepath.Join(cwd, "..", "..", "testing", "gke", "project.tf"))
-
-	data, err := os.ReadFile(fixture)
-	if err != nil {
-		t.Fatalf("read fixture %q: %v", fixture, err)
-	}
-
 	tmp := t.TempDir()
 
 	src := filepath.Join(tmp, "project.tf")
-	if err := os.WriteFile(src, data, 0o644); err != nil {
+	fixture := []byte(`resource "google_project_service" "compute" {
+  service = "compute.googleapis.com"
+}
+`)
+	if err := os.WriteFile(src, fixture, 0o644); err != nil {
 		t.Fatalf("write temp source: %v", err)
 	}
 
