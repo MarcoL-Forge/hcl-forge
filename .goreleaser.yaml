@@ -5,6 +5,7 @@ project_name: hcl-forge
 before:
   hooks:
     - go mod tidy
+    - go test ./...
 
 builds:
   - id: hcl-forge
@@ -43,11 +44,13 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^chore:'
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
 
 release:
+  draft: true
+  prerelease: auto
   github:
     owner: MarcoL-Forge
     name: hcl-forge
