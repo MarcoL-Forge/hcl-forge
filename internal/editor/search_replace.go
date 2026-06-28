@@ -21,17 +21,17 @@ func (e SearchReplaceEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	occurrences := bytes.Count(data, oldBytes)
 	if occurrences == 0 {
 		return data, EditResult{
-			Changed:      false,
+			Changed:     false,
 			Occurrences: 0,
-			Message:      "no matches found",
+			Message:     "no matches found",
 		}, nil
 	}
 
 	updated := bytes.ReplaceAll(data, oldBytes, newBytes)
 
 	return updated, EditResult{
-		Changed:      true,
+		Changed:     true,
 		Occurrences: occurrences,
-		Message:      "search and replace applied",
+		Message:     "search and replace applied",
 	}, nil
 }

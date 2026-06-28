@@ -275,21 +275,51 @@ Install prebuilt binaries:
 
 ### Maintainer release flow
 
-Releases are automated with GoReleaser via `.github/workflows/release.yml` and `.goreleaser.yaml`.
+Release workflows are currently **manual-only** (`workflow_dispatch`) for controlled rollout.
 
-To publish a new version:
+Production release files:
 
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
+- `.github/workflows/semantic-release.yml`: computes next semantic version from Conventional Commits and creates/pushes a `vX.Y.Z` tag.
+- `.github/workflows/release.yml`: runs GoReleaser to publish release artifacts.
+- `.goreleaser.yaml`: build/archive/changelog configuration.
 
-When a `v*` tag is pushed, GitHub Actions will:
+Recommended release runbook:
 
-- run tests
-- build binaries for Linux/macOS/Windows (`amd64` and `arm64`)
-- create release archives and checksums
-- publish assets to the GitHub Release
+1. Ensure `main` is green (`tests` and `Security Checks` workflows passing).
+2. Run `Semantic Release (Conventional Commits)` manually from GitHub Actions.
+3. Verify the new `vX.Y.Z` tag exists.
+4. Run `release` workflow manually, selecting the new tag as the ref.
+
+Conventional Commit bump rules used by semantic release:
+
+- major: `BREAKING CHANGE` footer or `!` in commit type
+- minor: `feat:`
+- patch: `fix:` or `perf:`
+- no release: commits that do not match release rules
+
+GoReleaser publishes:
+
+- Linux/macOS/Windows binaries (`amd64`, `arm64`)
+- release archives and checksums
+- GitHub Release assets
+
+### Security and Supply Chain Posture
+
+Security controls currently in place:
+
+- `.github/workflows/security-checks.yml` runs on pull requests and pushes to `main`.
+- Blocking scans:
+	- `govulncheck` for Go dependency/runtime vulnerabilities
+	- `gitleaks` for secret detection
+	- Trivy container scan (`HIGH`, `CRITICAL`) against built image
+- Workflow actions are pinned to immutable commit SHAs.
+- `.github/dependabot.yml` enables weekly updates for:
+	- Go modules (`gomod`)
+	- GitHub Actions
+
+Operational recommendation for production:
+
+- Require `tests` and `Security Checks` as required status checks in branch protection before merging to `main`.
 
 ### Install in Go pipelines
 

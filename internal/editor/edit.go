@@ -1,9 +1,9 @@
 package editor
 
 type EditResult struct {
-	Changed      bool
+	Changed     bool
 	Occurrences int
-	Message      string
+	Message     string
 }
 
 type Edit interface {
