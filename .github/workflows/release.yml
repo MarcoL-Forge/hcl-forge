@@ -5,11 +5,6 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to release manually (for example v0.2.0)"
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -30,16 +25,14 @@ jobs:
           git fetch --tags
 
           TAG=""
-          if [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
-          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
             TAG=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
           fi
 
           if [ -z "$TAG" ]; then
-            echo "No release tag provided and no existing v* tag found."
+            echo "No existing v* tag found to release."
             exit 1
           fi
 
