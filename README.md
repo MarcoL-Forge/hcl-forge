@@ -493,7 +493,7 @@ Every structured log event includes:
 
 ## Publish and Install
 
-This project can be published as downloadable binaries using GitHub Releases.
+`hcl-forge` is distributed through GitHub Releases.
 
 ### User installs
 
@@ -501,6 +501,12 @@ Install from source (requires Go):
 
 ```bash
 go install github.com/Marc0l95/hclforge/cmd/hcl-forge@latest
+```
+
+Install a pinned version:
+
+```bash
+go install github.com/Marc0l95/hclforge/cmd/hcl-forge@v0.1.0
 ```
 
 Install prebuilt binaries:
@@ -511,21 +517,22 @@ Install prebuilt binaries:
 
 ### Maintainer release flow
 
-Release is automated from `main` merges via release PRs.
+Releases are driven from `main` via release PRs and version tags.
 
 Production release files:
 
-- `.github/workflows/release-pr.yml`: creates/updates a release PR from commits on `main` and enables auto-merge.
-- `.github/workflows/release.yml`: publishes GoReleaser artifacts when a `v*` tag is pushed (or manually for a specific tag).
+- `.github/workflows/release-pr.yml`: creates/updates a release PR from commits on `main` (no auto-merge).
+- `.github/workflows/release.yml`: runs GoReleaser when a `v*` tag is pushed.
 - `.goreleaser.yaml`: build/archive/changelog configuration.
 
 Recommended release runbook:
 
 1. Ensure `main` is green (`tests` and `Security Checks` workflows passing).
 2. Merge changes to `main` using Conventional Commits.
-3. `release-pr` opens/updates a release PR and enables auto-merge.
-4. When merged, release-please creates/pushes the `vX.Y.Z` tag.
-5. Tag push triggers `release` workflow, which publishes release assets via GoReleaser.
+3. `release-pr` opens/updates a release PR.
+4. Manually review and merge the release PR.
+5. Release Please creates/pushes the `vX.Y.Z` tag.
+6. Tag push triggers `release`, and GoReleaser builds and uploads release assets.
 
 Conventional Commit bump rules used by release-please:
 
@@ -557,20 +564,6 @@ Security controls currently in place:
 Operational recommendation for production:
 
 - Require `tests` and `Security Checks` as required status checks in branch protection before merging to `main`.
-
-### Install in Go pipelines
-
-Use `go install` (preferred over `go get` for binaries):
-
-```bash
-go install github.com/Marc0l95/hclforge/cmd/hcl-forge@latest
-```
-
-Pinned version:
-
-```bash
-go install github.com/Marc0l95/hclforge/cmd/hcl-forge@v0.1.0
-```
 
 ### Docker Image for Pipeline Ingestion
 
