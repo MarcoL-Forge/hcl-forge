@@ -2,10 +2,16 @@ name: tests
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   go-tests:
+    name: Go tests
     runs-on: ubuntu-latest
 
     steps:
@@ -16,6 +22,13 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
 
       - name: Unit tests
         run: go test ./...
@@ -24,4 +37,7 @@ jobs:
         run: go test -tags=integration ./...
 
       - name: E2E tests
-        run: go test -tags=e2e ./cmd/hcl-forge
+        run: go test -tags=e2e ./cmd/hclforge
+
+      - name: Build CLI
+        run: go build -o hcl-forge ./cmd/hclforge
