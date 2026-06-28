@@ -40,3 +40,25 @@ func TestWriteToTargetDir_UsesSourceBasename(t *testing.T) {
 		t.Fatalf("expected output file at %q: %v", out, err)
 	}
 }
+
+func TestWriteFile_OverwritesExistingFile(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "main.tf")
+
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	if err := WriteFile(path, []byte("new")); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+
+	if string(got) != "new" {
+		t.Fatalf("expected overwritten content %q, got %q", "new", string(got))
+	}
+}

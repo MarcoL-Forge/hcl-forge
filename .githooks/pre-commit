@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+echo "[pre-commit] Running formatting and lint checks..."
+
+staged_go_files="$(git diff --cached --name-only --diff-filter=ACMR | grep '\.go$' || true)"
+if [ -n "$staged_go_files" ]; then
+  echo "[pre-commit] Formatting staged Go files"
+  echo "$staged_go_files" | xargs gofmt -w
+  echo "$staged_go_files" | xargs git add
+fi
+
+if [ -n "$(gofmt -l .)" ]; then
+  echo "[pre-commit] gofmt check failed"
+  exit 1
+fi
+
+if [ -x "$(go env GOPATH)/bin/golangci-lint" ]; then
+  GOLANGCI_LINT="$(go env GOPATH)/bin/golangci-lint"
+elif command -v golangci-lint >/dev/null 2>&1; then
+  GOLANGCI_LINT="golangci-lint"
+else
+  echo "[pre-commit] Installing golangci-lint v1.64.8"
+  go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+  GOLANGCI_LINT="$(go env GOPATH)/bin/golangci-lint"
+fi
+
+go vet ./...
+"$GOLANGCI_LINT" run ./...
+
+echo "[pre-commit] OK"

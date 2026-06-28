@@ -18,6 +18,30 @@ Core goals:
 - Support deterministic input/output routing for generated or patched files.
 - Keep the CLI dependency-light and automation-friendly.
 
+## Pre-commit Quality Checks
+
+The repository uses native `pre-commit` hooks for formatting, linting, and quality checks.
+
+Install once per clone:
+
+```bash
+git config --unset-all core.hooksPath || true
+pre-commit install
+```
+
+Run all hooks manually:
+
+```bash
+pre-commit run --all-files
+```
+
+What runs before every commit:
+
+- trailing-whitespace check for Go/YAML/Markdown files
+- `gofmt -w` for Go files
+- `go vet ./...`
+- `golangci-lint run ./...` (pinned to `v1.64.8`)
+
 ## Non-goals
 
 `hcl-forge` is not intended to replace Terraform.
@@ -143,6 +167,122 @@ Notes:
 
 - Matching is exact on `block_type` and label order.
 - If multiple blocks match, the first match found is used.
+- Block snippets are convergent: rerunning the same `insert_hcl` merges into matching child blocks instead of appending duplicates.
+
+### Rigorous Selector Model (Recommended Reading)
+
+`hcl-forge` supports two selector styles for `insert_hcl`, `delete_hcl`, and `set_attribute`.
+
+1. Explicit selector style:
+
+```yaml
+block:
+	block_type: resource
+	labels: [google_service_account, nodes]
+	parents:
+		- block_type: module
+			labels: [gke_cluster]
+```
+
+2. Dot path selector style:
+
+```yaml
+block:
+	path: module.gke_cluster.resource.google_service_account.nodes
+```
+
+Both styles work. Dot path is compiled into the explicit selector model internally.
+
+You can mix styles across edits in the same playbook (for example, `insert_hcl` using explicit selectors and `delete_hcl` using `block.path`).
+
+`insert_hcl` also supports guarded and ensure semantics:
+
+- `ensure_target_block: true`: create missing target block path before inserting snippet entries.
+- `guard.if_target_exists: true`: apply only when target block already exists.
+- `guard.if_target_missing: true`: apply only when target block is missing.
+
+Guarded + ensure example:
+
+```yaml
+edits:
+	- type: insert_hcl
+		ensure_target_block: true
+		guard:
+			if_target_missing: true
+		block:
+			path: resource.google_container_node_pool.pool.node_config.shielded_instance_config
+		hcl: |
+			enable_secure_boot = true
+```
+
+Strict rules to avoid ambiguity:
+
+- If `block.path` is set, do not set `block_type`/`type`, `labels`, or `parents` in the same selector.
+- If `block.path` is not set, use explicit fields (`block_type` + `labels`, optional `parents`).
+- Matching is deterministic and exact (type + label order + parent chain).
+- `guard.if_target_exists` and `guard.if_target_missing` cannot both be true.
+- `ensure_target_block` and `guard` require a `block` selector.
+
+Mixed-style playbook example:
+
+```yaml
+edits:
+	- type: insert_hcl
+		block:
+			block_type: resource
+			labels: [google_service_account, nodes]
+		hcl: |
+			description = "managed"
+
+	- type: delete_hcl
+		block:
+			path: resource.google_service_account.nodes
+		attribute: description
+```
+
+#### Terraform Alignment
+
+The dot syntax is Terraform-like for block addressing and AST traversal.
+
+- Top-level block paths mirror Terraform concepts:
+	- `resource.google_service_account.nodes`
+	- `data.google_client_config.default`
+	- `module.gke_cluster`
+	- `provider.google`
+- Nested segments (for example `.node_config.shielded_instance_config`) represent AST block traversal.
+
+It does **not** currently represent arbitrary expression/object traversal such as `locals.foo.bar[0]` inside values.
+
+#### Path Grammar
+
+Supported path segments:
+
+- `resource.<type>.<name>`
+- `data.<type>.<name>`
+- `module.<name>`
+- `variable.<name>`
+- `output.<name>`
+- `provider.<name>`
+- `locals`
+- `terraform`
+- Any additional segment after those is treated as nested block traversal.
+
+Examples:
+
+```yaml
+# Exact equivalent selectors
+block:
+	path: resource.google_service_account.nodes
+
+# equals
+block:
+	block_type: resource
+	labels: [google_service_account, nodes]
+
+# Nested path
+block:
+	path: resource.google_container_node_pool.pool.node_config.shielded_instance_config
+```
 
 ## Delete HCL Edits
 
@@ -200,6 +340,34 @@ edits:
 - with `attribute`: removes every matching attribute (scope is root + nested blocks, or only matched blocks when `block` is provided)
 - with `block`: removes every matching block
 - without `delete_all` (default): removes only the first match
+- when a targeted `block` is missing for attribute deletion, the edit is a no-op (idempotent) instead of a hard failure
+
+## Set Attribute Edits
+
+Use `set_attribute` for selector-scoped AST updates without text search/replace.
+
+```yaml
+edits:
+	- type: set_attribute
+		block:
+			path: resource.google_storage_bucket.bucket
+		attribute: location
+		value_hcl: '"us-central1"'
+
+	- type: set_attribute
+		block:
+			block_type: resource
+			labels: [google_storage_bucket, bucket]
+		attribute: force_destroy
+		value_hcl: true
+		create_if_missing: true
+```
+
+Behavior:
+
+- If the target block is missing, the edit is a no-op.
+- If the attribute already has the same expression, the edit is a no-op.
+- If `create_if_missing: true`, missing attributes are created; otherwise the edit is a no-op.
 
 ## CI Pipeline Inputs
 
@@ -254,6 +422,53 @@ go run ./cmd/hcl-forge apply -config example_playbook/tf_harness_pipeline.yaml
 This keeps playbooks platform-neutral while still allowing Harness to populate values.
 
 See `example_playbook/tf_harness_pipeline.yaml` for a complete template-ready playbook.
+
+## Logging and Debug Artifacts
+
+`hcl-forge` provides structured logging for both local runs and CI pipelines.
+
+Supported flags on both `plan` and `apply`:
+
+- `--verbose`: shortcut for debug-level logs
+- `--log-level`: `debug|info|warn|error`
+- `--log-format`: `text|json`
+- `--log-output`: `stderr|stdout|<file-path>`
+- `--log-artifact`: optional NDJSON artifact file for pipeline ingestion
+- `--log-redact`: comma-separated additional keys to redact (defaults already include common secret keys)
+- `--quiet`: suppress human-readable summary output and emit structured logs only
+
+Examples:
+
+```bash
+# Human-readable local logs
+go run ./cmd/hcl-forge plan \
+	-config example_playbook/tf_insert_node_config.yaml \
+	--verbose \
+	--log-format text \
+	--log-output stderr
+
+# Pipeline-friendly JSON logs + NDJSON artifact
+go run ./cmd/hcl-forge apply \
+	-config example_playbook/tf_harness_pipeline.yaml \
+	--log-level info \
+	--log-format json \
+	--log-output stdout \
+	--log-artifact ./out/hclforge-events.ndjson \
+	--log-redact session_token,db_password \
+	--quiet
+```
+
+Debug coverage includes:
+
+- command lifecycle (`plan_start`, `apply_start`, completion/failure)
+- per-file worker lifecycle (`file_job_start`, `file_job_completed`, `file_job_failed`)
+- per-edit timing (`edit_start`, `edit_completed`, `edit_failed`)
+- selector resolution traces for `insert_hcl`
+
+Every structured log event includes:
+
+- `schema_version` (currently `hclforge.log.v1`)
+- monotonic `event_id` per process run
 
 ## Publish and Install
 

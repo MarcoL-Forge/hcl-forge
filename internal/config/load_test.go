@@ -194,3 +194,43 @@ edits:
 		t.Fatalf("expected missing env var error, got nil")
 	}
 }
+
+func TestLoad_PathSelectorConfig(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "tfedit.yaml")
+
+	content := `version: 1
+input:
+  root_dir: .
+  files:
+    - main.tf
+output:
+  mode: overwrite
+options:
+  workers: 1
+  fail_on_no_change: false
+edits:
+  - type: insert_hcl
+    block:
+      path: resource.google_service_account.nodes
+    hcl: |
+      description = "managed by hcl-forge"
+`
+
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	if len(cfg.Edits) != 1 || cfg.Edits[0].Block == nil {
+		t.Fatalf("expected one edit with block selector")
+	}
+
+	if cfg.Edits[0].Block.Path != "resource.google_service_account.nodes" {
+		t.Fatalf("unexpected path selector: %q", cfg.Edits[0].Block.Path)
+	}
+}

@@ -54,20 +54,74 @@ func Validate(cfg Config) error {
 			if edit.HCL == "" {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
 			}
-			if edit.Block != nil && edit.Block.SelectedType() == "" {
-				return fmt.Errorf("edits[%d]: block selector requires block_type (or type)", i)
+
+			if edit.Guard != nil && edit.Guard.IfTargetExists && edit.Guard.IfTargetMissing {
+				return fmt.Errorf("edits[%d]: guard.if_target_exists and guard.if_target_missing cannot both be true", i)
+			}
+
+			if (edit.EnsureTargetBlock || edit.Guard != nil) && edit.Block == nil {
+				return fmt.Errorf("edits[%d]: insert_hcl ensure/guard requires block selector", i)
+			}
+
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
 			}
 
 		case "delete_hcl":
-			if edit.Block != nil && edit.Block.SelectedType() == "" {
-				return fmt.Errorf("edits[%d]: block selector requires block_type (or type)", i)
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
 			}
 			if edit.Attribute == "" && edit.Block == nil {
 				return fmt.Errorf("edits[%d]: delete_hcl requires attribute or block", i)
 			}
 
+		case "set_attribute":
+			if edit.Attribute == "" {
+				return fmt.Errorf("edits[%d]: set_attribute requires attribute", i)
+			}
+
+			if edit.ValueHCL == "" {
+				return fmt.Errorf("edits[%d]: set_attribute requires value_hcl", i)
+			}
+
+			if edit.Block != nil {
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
+			}
+
 		default:
 			return fmt.Errorf("edits[%d]: unsupported edit type %q", i, edit.Type)
+		}
+	}
+
+	return nil
+}
+
+func validateBlockSelector(block BlockSelector) error {
+	if block.Path != "" {
+		if block.SelectedType() != "" || len(block.Labels) > 0 || len(block.Parents) > 0 {
+			return fmt.Errorf("block.path cannot be combined with block_type/type, labels, or parents")
+		}
+
+		if _, err := selectorFromPath(block.Path); err != nil {
+			return fmt.Errorf("invalid block.path: %w", err)
+		}
+
+		return nil
+	}
+
+	if block.SelectedType() == "" {
+		return fmt.Errorf("block selector requires block_type (or type)")
+	}
+
+	for j, parent := range block.Parents {
+		if parent.SelectedType() == "" {
+			return fmt.Errorf("block.parents[%d] requires block_type (or type)", j)
 		}
 	}
 
