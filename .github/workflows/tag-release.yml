@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   tag-release:
@@ -45,3 +46,42 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Mark release PR as tagged
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          TITLE="chore(main): release ${VERSION}"
+
+          PR_NUMBER=$(curl -sS \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/pulls?state=closed&base=main&per_page=100" \
+            | jq -r --arg title "$TITLE" '.[] | select(.title == $title and .merged_at != null) | .number' \
+            | head -n 1)
+
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "No merged release PR found for version ${VERSION}; skipping label update"
+            exit 0
+          fi
+
+          echo "Updating labels for release PR #${PR_NUMBER}"
+
+          curl -sS -o /dev/null -w "%{http_code}" \
+            -X DELETE \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending" \
+            | grep -Eq '^(200|204|404)$'
+
+          curl -sS -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
+            -d '{"labels":["autorelease: tagged"]}' \
+            | grep -Eq '^(200|201)$'
