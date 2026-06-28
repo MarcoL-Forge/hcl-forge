@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"os"
 )
 
 // Integration test: copy a real fixture file, run ApplyFilePlans with a
