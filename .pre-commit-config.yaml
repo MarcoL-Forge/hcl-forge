@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: hcl-forge-quality
+        name: hcl-forge quality checks
+        entry: .githooks/pre-commit
+        language: system
+        pass_filenames: false
+        always_run: true
