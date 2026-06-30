@@ -3,8 +3,8 @@ package config
 import (
 	"fmt"
 
-	"github.com/Marc0l95/hclforge/internal/document"
-	"github.com/Marc0l95/hclforge/internal/editor"
+	"github.com/MarcoL-Forge/hcl-forge/internal/document"
+	"github.com/MarcoL-Forge/hcl-forge/internal/editor"
 )
 
 func BuildFilePlans(cfg Config) ([]editor.FilePlan, error) {

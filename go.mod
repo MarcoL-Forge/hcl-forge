@@ -1,4 +1,4 @@
-module github.com/Marc0l95/hclforge
+module github.com/MarcoL-Forge/hcl-forge
 
 go 1.25.0
 

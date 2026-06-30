@@ -500,13 +500,13 @@ Every structured log event includes:
 Install from source (requires Go):
 
 ```bash
-go install github.com/Marc0l95/hclforge/cmd/hcl-forge@latest
+go install github.com/MarcoL-Forge/hcl-forge/cmd/hcl-forge@latest
 ```
 
 Install a pinned version:
 
 ```bash
-go install github.com/Marc0l95/hclforge/cmd/hcl-forge@v0.1.0
+go install github.com/MarcoL-Forge/hcl-forge/cmd/hcl-forge@v0.1.0
 ```
 
 Install prebuilt binaries:

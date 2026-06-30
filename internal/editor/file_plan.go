@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Marc0l95/hclforge/internal/document"
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/document"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 )
 
 type FilePlan struct {

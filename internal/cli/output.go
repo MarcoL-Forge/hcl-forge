@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/Marc0l95/hclforge/internal/editor"
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/editor"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 )
 
 func printResults(mode string, results []editor.FilePlanResult, logger *logging.Logger, quiet bool) {
