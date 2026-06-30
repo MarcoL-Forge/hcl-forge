@@ -1,108 +1,108 @@
-name: tag-release
+# name: tag-release
 
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".release-please-manifest.json"
+# on:
+#   push:
+#     branches:
+#       - main
+#     paths:
+#       - ".release-please-manifest.json"
 
-permissions:
-  contents: write
-  issues: write
+# permissions:
+#   contents: write
+#   issues: write
 
-jobs:
-  tag-release:
-    name: Tag release
-    runs-on: ubuntu-latest
+# jobs:
+#   tag-release:
+#     name: Tag release
+#     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+#         with:
+#           fetch-depth: 0
 
-      - name: Read version
-        id: version
-        run: |
-          VERSION=$(jq -r '."."' .release-please-manifest.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+#       - name: Read version
+#         id: version
+#         run: |
+#           VERSION=$(jq -r '."."' .release-please-manifest.json)
+#           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+#           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check if tag already exists
-        id: tag_exists
-        run: |
-          git fetch --tags
-          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+#       - name: Check if tag already exists
+#         id: tag_exists
+#         run: |
+#           git fetch --tags
+#           if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+#             echo "exists=true" >> "$GITHUB_OUTPUT"
+#           else
+#             echo "exists=false" >> "$GITHUB_OUTPUT"
+#           fi
 
-      - name: Create release tag
-        if: steps.tag_exists.outputs.exists == 'false'
-        env:
-          TAG_PUSH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-        run: |
-          if [ -z "${TAG_PUSH_TOKEN}" ]; then
-            echo "RELEASE_PLEASE_TOKEN is not set. A PAT is required to push tags that trigger downstream workflows."
-            exit 1
-          fi
+#       - name: Create release tag
+#         if: steps.tag_exists.outputs.exists == 'false'
+#         env:
+#           TAG_PUSH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+#         run: |
+#           if [ -z "${TAG_PUSH_TOKEN}" ]; then
+#             echo "RELEASE_PLEASE_TOKEN is not set. A PAT is required to push tags that trigger downstream workflows."
+#             exit 1
+#           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push "https://x-access-token:${TAG_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${{ steps.version.outputs.tag }}"
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git tag "${{ steps.version.outputs.tag }}"
+#           git push "https://x-access-token:${TAG_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${{ steps.version.outputs.tag }}"
 
-      - name: Mark release PR as tagged
-        env:
-          LABEL_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          REPO: ${{ github.repository }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
+#       - name: Mark release PR as tagged
+#         env:
+#           LABEL_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+#           REPO: ${{ github.repository }}
+#           VERSION: ${{ steps.version.outputs.version }}
+#         run: |
+#           set -euo pipefail
 
-          if [ -z "${LABEL_TOKEN}" ]; then
-            echo "RELEASE_PLEASE_TOKEN is not set. Skipping label update."
-            exit 0
-          fi
+#           if [ -z "${LABEL_TOKEN}" ]; then
+#             echo "RELEASE_PLEASE_TOKEN is not set. Skipping label update."
+#             exit 0
+#           fi
 
-          TITLE="chore(main): release ${VERSION}"
+#           TITLE="chore(main): release ${VERSION}"
 
-          PR_NUMBER=$(curl -sS \
-            -H "Authorization: Bearer ${LABEL_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/pulls?state=closed&base=main&per_page=100" \
-            | jq -r --arg title "$TITLE" '.[] | select(.title == $title and .merged_at != null) | .number' \
-            | head -n 1)
+#           PR_NUMBER=$(curl -sS \
+#             -H "Authorization: Bearer ${LABEL_TOKEN}" \
+#             -H "Accept: application/vnd.github+json" \
+#             "https://api.github.com/repos/${REPO}/pulls?state=closed&base=main&per_page=100" \
+#             | jq -r --arg title "$TITLE" '.[] | select(.title == $title and .merged_at != null) | .number' \
+#             | head -n 1)
 
-          if [ -z "${PR_NUMBER}" ]; then
-            echo "No merged release PR found for version ${VERSION}; skipping label update"
-            exit 0
-          fi
+#           if [ -z "${PR_NUMBER}" ]; then
+#             echo "No merged release PR found for version ${VERSION}; skipping label update"
+#             exit 0
+#           fi
 
-          echo "Updating labels for release PR #${PR_NUMBER}"
+#           echo "Updating labels for release PR #${PR_NUMBER}"
 
-          DELETE_STATUS=$(curl -sS -o /tmp/delete-label-body.json -w "%{http_code}" \
-            -X DELETE \
-            -H "Authorization: Bearer ${LABEL_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending")
+#           DELETE_STATUS=$(curl -sS -o /tmp/delete-label-body.json -w "%{http_code}" \
+#             -X DELETE \
+#             -H "Authorization: Bearer ${LABEL_TOKEN}" \
+#             -H "Accept: application/vnd.github+json" \
+#             "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels/autorelease:%20pending")
 
-          if ! echo "${DELETE_STATUS}" | grep -Eq '^(200|204|404)$'; then
-            echo "Warning: deleting autorelease: pending label returned HTTP ${DELETE_STATUS}"
-            cat /tmp/delete-label-body.json || true
-          fi
+#           if ! echo "${DELETE_STATUS}" | grep -Eq '^(200|204|404)$'; then
+#             echo "Warning: deleting autorelease: pending label returned HTTP ${DELETE_STATUS}"
+#             cat /tmp/delete-label-body.json || true
+#           fi
 
-          ADD_STATUS=$(curl -sS -o /tmp/add-label-body.json -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${LABEL_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
-            -d '{"labels":["autorelease: tagged"]}')
+#           ADD_STATUS=$(curl -sS -o /tmp/add-label-body.json -w "%{http_code}" \
+#             -X POST \
+#             -H "Authorization: Bearer ${LABEL_TOKEN}" \
+#             -H "Accept: application/vnd.github+json" \
+#             "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
+#             -d '{"labels":["autorelease: tagged"]}')
 
-          if ! echo "${ADD_STATUS}" | grep -Eq '^(200|201)$'; then
-            echo "Warning: adding autorelease: tagged label returned HTTP ${ADD_STATUS}"
-            cat /tmp/add-label-body.json || true
-            echo "Continuing without failing the workflow."
-          fi
+#           if ! echo "${ADD_STATUS}" | grep -Eq '^(200|201)$'; then
+#             echo "Warning: adding autorelease: tagged label returned HTTP ${ADD_STATUS}"
+#             cat /tmp/add-label-body.json || true
+#             echo "Continuing without failing the workflow."
+#           fi
