@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 )
 
 type EditResult struct {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Marc0l95/hclforge/internal/editor"
+	"github.com/MarcoL-Forge/hcl-forge/internal/editor"
 )
 
 func TestBuildFilePlans_Overwrite(t *testing.T) {

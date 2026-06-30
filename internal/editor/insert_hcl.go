@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )

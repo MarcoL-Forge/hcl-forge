@@ -5,9 +5,9 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/Marc0l95/hclforge/internal/config"
-	"github.com/Marc0l95/hclforge/internal/editor"
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/config"
+	"github.com/MarcoL-Forge/hcl-forge/internal/editor"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 )
 
 func runApply(args []string) error {

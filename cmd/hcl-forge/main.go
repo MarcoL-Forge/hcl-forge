@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Marc0l95/hclforge/internal/cli"
-	"github.com/Marc0l95/hclforge/internal/logging"
+	"github.com/MarcoL-Forge/hcl-forge/internal/cli"
+	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 )
 
 func run(args []string) error {
