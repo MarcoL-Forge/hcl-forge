@@ -1,0 +1,28 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/all-features/out/delete
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Delete one attribute from a selected block.
+  - type: delete_hcl
+    block:
+      block_type: resource
+      labels: [google_storage_bucket, logs]
+    attribute: uniform_bucket_level_access
+
+  # Delete one matching block.
+  - type: delete_hcl
+    block:
+      block_type: variable
+      labels: [project_id]

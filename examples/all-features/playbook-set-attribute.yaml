@@ -1,0 +1,30 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/all-features/out/set-attribute
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Update existing attribute.
+  - type: set_attribute
+    block:
+      path: resource.google_storage_bucket.logs
+    attribute: location
+    value_hcl: '"us-central1"'
+
+  # Create missing attribute on target when enabled.
+  - type: set_attribute
+    block:
+      path: resource.google_container_node_pool.pool.node_config
+    attribute: oauth_scopes
+    value_hcl: '["https://www.googleapis.com/auth/cloud-platform"]'
+    create_if_missing: true

@@ -2,6 +2,9 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -40,10 +43,34 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		}
 
 		deleted := 0
+		usePattern := hasGlobPattern(e.Attribute)
 		for _, body := range targetBodies {
+			if usePattern {
+				names := sortedAttributeNames(body)
+				for _, name := range names {
+					if !matchesPattern(e.Attribute, name) {
+						continue
+					}
+
+					body.RemoveAttribute(name)
+					deleted++
+
+					if !e.DeleteAll {
+						break
+					}
+				}
+
+				if deleted > 0 && !e.DeleteAll {
+					break
+				}
+
+				continue
+			}
+
 			if body.GetAttribute(e.Attribute) == nil {
 				continue
 			}
+
 			body.RemoveAttribute(e.Attribute)
 			deleted++
 
@@ -83,7 +110,7 @@ func removeFirstMatchingBlock(body *hclwrite.Body, selector BlockSelector) bool 
 
 func removeFirstMatchingBlockWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector) bool {
 	for _, block := range body.Blocks() {
-		if blockMatches(block, selector) && parentsMatch(ancestry, selector.Parents) {
+		if blockMatchesDeleteSelector(block, selector) && parentsMatchDeleteSelector(ancestry, selector.Parents) {
 			body.RemoveBlock(block)
 			return true
 		}
@@ -116,7 +143,7 @@ func removeAllMatchingBlocksWithParents(body *hclwrite.Body, selector BlockSelec
 
 		removed += removeAllMatchingBlocksWithParents(block.Body(), selector, nextAncestry)
 
-		if blockMatches(block, selector) && parentsMatch(ancestry, selector.Parents) {
+		if blockMatchesDeleteSelector(block, selector) && parentsMatchDeleteSelector(ancestry, selector.Parents) {
 			body.RemoveBlock(block)
 			removed++
 		}
@@ -133,7 +160,7 @@ func findMatchingBodiesWithParents(body *hclwrite.Body, selector BlockSelector, 
 	bodies := make([]*hclwrite.Body, 0)
 
 	for _, block := range body.Blocks() {
-		if blockMatches(block, selector) && parentsMatch(ancestry, selector.Parents) {
+		if blockMatchesDeleteSelector(block, selector) && parentsMatchDeleteSelector(ancestry, selector.Parents) {
 			bodies = append(bodies, block.Body())
 		}
 
@@ -156,4 +183,74 @@ func collectAllBodies(body *hclwrite.Body) []*hclwrite.Body {
 	}
 
 	return bodies
+}
+
+func sortedAttributeNames(body *hclwrite.Body) []string {
+	attrs := body.Attributes()
+	names := make([]string, 0, len(attrs))
+	for name := range attrs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func hasGlobPattern(pattern string) bool {
+	return strings.ContainsAny(pattern, "*?[")
+}
+
+func matchesPattern(pattern, value string) bool {
+	if !hasGlobPattern(pattern) {
+		return pattern == value
+	}
+
+	matched, err := filepath.Match(pattern, value)
+	return err == nil && matched
+}
+
+func blockMatchesDeleteSelector(block *hclwrite.Block, selector BlockSelector) bool {
+	if !matchesPattern(selector.Type, block.Type()) {
+		return false
+	}
+
+	labels := block.Labels()
+	if len(selector.Labels) != len(labels) {
+		return false
+	}
+
+	for i := range labels {
+		if !matchesPattern(selector.Labels[i], labels[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func parentsMatchDeleteSelector(ancestry, expected []ParentSelector) bool {
+	if len(expected) == 0 {
+		return true
+	}
+
+	if len(ancestry) != len(expected) {
+		return false
+	}
+
+	for i := range ancestry {
+		if !matchesPattern(expected[i].Type, ancestry[i].Type) {
+			return false
+		}
+
+		if len(ancestry[i].Labels) != len(expected[i].Labels) {
+			return false
+		}
+
+		for j := range ancestry[i].Labels {
+			if !matchesPattern(expected[i].Labels[j], ancestry[i].Labels[j]) {
+				return false
+			}
+		}
+	}
+
+	return true
 }

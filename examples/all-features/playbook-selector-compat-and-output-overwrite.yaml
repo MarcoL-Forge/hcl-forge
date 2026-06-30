@@ -1,0 +1,31 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: overwrite
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Backward-compatible selector key: `type` instead of `block_type`.
+  - type: delete_hcl
+    block:
+      type: variable
+      labels: [project_id]
+
+  # Backward-compatible parent key: `type` in parents list.
+  - type: insert_hcl
+    block:
+      block_type: management
+      labels: []
+      parents:
+        - type: resource
+          labels: [google_container_node_pool, pool]
+    hcl: |
+      auto_repair = false

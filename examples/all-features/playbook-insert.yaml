@@ -1,0 +1,30 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/all-features/out/insert
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Insert at root level (no block selector).
+  - type: insert_hcl
+    hcl: |
+      locals {
+        environment = "prod"
+      }
+
+  # Insert inside an existing block using explicit selector.
+  - type: insert_hcl
+    block:
+      block_type: resource
+      labels: [google_storage_bucket, logs]
+    hcl: |
+      force_destroy = true

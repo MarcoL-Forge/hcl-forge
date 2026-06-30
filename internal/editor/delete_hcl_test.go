@@ -186,6 +186,7 @@ func TestDeleteHCLEdit_DeleteAttributeMissingTarget_IsNoOp(t *testing.T) {
 	input := `resource "google_storage_bucket" "bucket" {
   name = "my-bucket"
 }
+
 `
 
 	edit := DeleteHCLEdit{
@@ -205,5 +206,71 @@ func TestDeleteHCLEdit_DeleteAttributeMissingTarget_IsNoOp(t *testing.T) {
 	}
 	if string(updated) != input {
 		t.Fatalf("expected input to remain unchanged")
+	}
+}
+
+func TestDeleteHCLEdit_DeleteAllMatchingBlocks_WithWildcardLabel(t *testing.T) {
+	input := `module "service-account-123" {
+  source = "./modules/service-account"
+}
+
+module "service-account-456" {
+  source = "./modules/service-account"
+}
+
+module "network" {
+  source = "./modules/network"
+}
+`
+
+	edit := DeleteHCLEdit{
+		TargetBlock: &BlockSelector{Type: "module", Labels: []string{"service-account-*"}},
+		DeleteAll:   true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl wildcard blocks: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 2 {
+		t.Fatalf("expected two deleted module blocks, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if strings.Contains(out, `module "service-account-123"`) || strings.Contains(out, `module "service-account-456"`) {
+		t.Fatalf("expected wildcard-matched modules removed, got:\n%s", out)
+	}
+	if !strings.Contains(out, `module "network"`) {
+		t.Fatalf("expected non-matching module to remain, got:\n%s", out)
+	}
+}
+
+func TestDeleteHCLEdit_DeleteAllAttributes_WithWildcardName(t *testing.T) {
+	input := `resource "google_storage_bucket" "bucket" {
+  enable_secure_boot = true
+  enable_autoupgrade = false
+  location           = "us-central1"
+}
+`
+
+	edit := DeleteHCLEdit{
+		Attribute: "enable_*",
+		DeleteAll: true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl wildcard attributes: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 2 {
+		t.Fatalf("expected two deleted attributes, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "enable_secure_boot") || strings.Contains(out, "enable_autoupgrade") {
+		t.Fatalf("expected wildcard-matched attributes removed, got:\n%s", out)
+	}
+	if !strings.Contains(out, "location") {
+		t.Fatalf("expected non-matching attribute to remain, got:\n%s", out)
 	}
 }
