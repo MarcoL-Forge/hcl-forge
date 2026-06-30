@@ -1,0 +1,27 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/all-features/out/delete-wildcard
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Wildcard delete for module labels.
+  - type: delete_hcl
+    block:
+      block_type: module
+      labels: [service-account-*]
+    delete_all: true
+
+  # Wildcard delete for attribute names.
+  - type: delete_hcl
+    attribute: enable_*
+    delete_all: true

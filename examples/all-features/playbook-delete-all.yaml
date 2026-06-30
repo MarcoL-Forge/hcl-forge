@@ -1,0 +1,27 @@
+version: 1
+
+input:
+  root_dir: ./examples/all-features
+  files:
+    - main.tf
+
+output:
+  mode: target_dir
+  target_dir: ./examples/all-features/out/delete-all
+
+options:
+  workers: 1
+  fail_on_no_change: false
+
+edits:
+  # Delete all matching attributes across the file.
+  - type: delete_hcl
+    attribute: location
+    delete_all: true
+
+  # Delete all matching lifecycle blocks.
+  - type: delete_hcl
+    block:
+      block_type: lifecycle
+      labels: []
+    delete_all: true

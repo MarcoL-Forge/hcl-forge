@@ -18,6 +18,12 @@ Core goals:
 - Support deterministic input/output routing for generated or patched files.
 - Keep the CLI dependency-light and automation-friendly.
 
+## Command Reference
+
+- `hcl-forge plan -config <playbook.yaml>`: previews edits without writing files.
+- `hcl-forge apply -config <playbook.yaml>`: applies edits and writes output files.
+- `hcl-forge help [command]`: shows command usage and flags.
+
 ## Examples
 
 Sample Terraform inputs and playbooks are in `examples/` with three complexity levels:
@@ -362,6 +368,22 @@ edits:
 - with `block`: removes every matching block
 - without `delete_all` (default): removes only the first match
 - when a targeted `block` is missing for attribute deletion, the edit is a no-op (idempotent) instead of a hard failure
+- wildcard matching is supported in `delete_hcl` selectors and `attribute` names (glob patterns like `*`, `?`, `[abc]`)
+
+Wildcard example:
+
+```yaml
+edits:
+	- type: delete_hcl
+		block:
+			block_type: module
+			labels: [service-account-*]
+		delete_all: true
+
+	- type: delete_hcl
+		attribute: enable_*
+		delete_all: true
+```
 
 ## Set Attribute Edits
 
