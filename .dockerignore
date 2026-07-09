@@ -7,7 +7,6 @@
 .goreleaser.yaml
 coverage.out
 README.md
-LICENSE
 Makefile
 examples
 testing
