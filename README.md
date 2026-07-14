@@ -370,6 +370,17 @@ edits:
 - when a targeted `block` is missing for attribute deletion, the edit is a no-op (idempotent) instead of a hard failure
 - wildcard matching is supported in `delete_hcl` selectors and `attribute` names (glob patterns like `*`, `?`, `[abc]`)
 
+`keep_only: true` behavior (inverse selector):
+
+- keeps blocks that match the selector and removes non-matching blocks in the same selector scope
+- requires a `block` selector
+- cannot be combined with `attribute`
+
+`match_mode` behavior:
+
+- `glob` (default): selector and attribute patterns use glob matching
+- `regex`: selector and attribute patterns use regular expressions (full-string match)
+
 Wildcard example:
 
 ```yaml
@@ -383,6 +394,25 @@ edits:
 	- type: delete_hcl
 		attribute: enable_*
 		delete_all: true
+```
+
+Keep-only example with wildcard and regex:
+
+```yaml
+edits:
+	- type: delete_hcl
+		keep_only: true
+		match_mode: glob
+		block:
+			block_type: resource
+			labels: [tfe_workspace, example*]
+
+	- type: delete_hcl
+		keep_only: true
+		match_mode: regex
+		block:
+			block_type: resource
+			labels: [tfe_workspace, example(1|3)]
 ```
 
 ## Set Attribute Edits

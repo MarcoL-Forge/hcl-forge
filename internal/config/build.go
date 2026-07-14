@@ -121,6 +121,8 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 			TargetBlock: targetBlock,
 			Attribute:   editCfg.Attribute,
 			DeleteAll:   editCfg.DeleteAll,
+			KeepOnly:    editCfg.KeepOnly,
+			MatchMode:   editCfg.MatchMode,
 		}, nil
 
 	case "set_attribute":

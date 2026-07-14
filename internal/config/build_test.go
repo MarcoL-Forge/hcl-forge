@@ -228,8 +228,55 @@ func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
 		t.Fatalf("expected delete_all to be true")
 	}
 
+	if deleteEdit.KeepOnly {
+		t.Fatalf("expected keep_only to be false")
+	}
+
+	if deleteEdit.MatchMode != "" {
+		t.Fatalf("expected empty match_mode by default, got %q", deleteEdit.MatchMode)
+	}
+
 	if deleteEdit.TargetBlock == nil || deleteEdit.TargetBlock.Type != "resource" {
 		t.Fatalf("unexpected target block: %+v", deleteEdit.TargetBlock)
+	}
+}
+
+func TestBuildFilePlans_DeleteHCLEditKeepOnlyAndRegexMode(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:      "delete_hcl",
+			KeepOnly:  true,
+			MatchMode: "regex",
+			Block: &BlockSelector{
+				BlockType: "resource",
+				Labels:    []string{"tfe_workspace", "example(1|3)"},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	deleteEdit, ok := plans[0].Edits[0].(editor.DeleteHCLEdit)
+	if !ok {
+		t.Fatalf("expected DeleteHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if !deleteEdit.KeepOnly {
+		t.Fatalf("expected keep_only to be true")
+	}
+
+	if deleteEdit.MatchMode != "regex" {
+		t.Fatalf("expected match_mode regex, got %q", deleteEdit.MatchMode)
 	}
 }
 

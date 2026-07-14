@@ -70,6 +70,20 @@ func Validate(cfg Config) error {
 			}
 
 		case "delete_hcl":
+			switch edit.MatchMode {
+			case "", "glob", "regex":
+			default:
+				return fmt.Errorf("edits[%d]: delete_hcl match_mode must be one of glob|regex", i)
+			}
+
+			if edit.KeepOnly && edit.Block == nil {
+				return fmt.Errorf("edits[%d]: delete_hcl keep_only requires block selector", i)
+			}
+
+			if edit.KeepOnly && edit.Attribute != "" {
+				return fmt.Errorf("edits[%d]: delete_hcl keep_only cannot be combined with attribute", i)
+			}
+
 			if edit.Block != nil {
 				if err := validateBlockSelector(*edit.Block); err != nil {
 					return fmt.Errorf("edits[%d]: %w", i, err)

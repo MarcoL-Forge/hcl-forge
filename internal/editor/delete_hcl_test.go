@@ -274,3 +274,104 @@ func TestDeleteHCLEdit_DeleteAllAttributes_WithWildcardName(t *testing.T) {
 		t.Fatalf("expected non-matching attribute to remain, got:\n%s", out)
 	}
 }
+
+func TestDeleteHCLEdit_KeepOnly_WithGlobPattern(t *testing.T) {
+	input := `resource "tfe_workspace" "example1" {
+  name = "example-1"
+}
+
+resource "tfe_workspace" "example2" {
+  name = "example-2"
+}
+
+resource "tfe_workspace" "team-dev" {
+  name = "team-dev"
+}
+
+resource "google_storage_bucket" "logs" {
+  name = "logs"
+}
+`
+
+	edit := DeleteHCLEdit{
+		KeepOnly: true,
+		TargetBlock: &BlockSelector{
+			Type:   "resource",
+			Labels: []string{"tfe_workspace", "example*"},
+		},
+		MatchMode: "glob",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl keep_only glob: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 1 {
+		t.Fatalf("expected one removed block, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, `resource "tfe_workspace" "example1"`) || !strings.Contains(out, `resource "tfe_workspace" "example2"`) {
+		t.Fatalf("expected selected workspaces to remain, got:\n%s", out)
+	}
+	if strings.Contains(out, `resource "tfe_workspace" "team-dev"`) {
+		t.Fatalf("expected non-selected workspace removed, got:\n%s", out)
+	}
+	if !strings.Contains(out, `resource "google_storage_bucket" "logs"`) {
+		t.Fatalf("expected non-scope resource to remain, got:\n%s", out)
+	}
+}
+
+func TestDeleteHCLEdit_KeepOnly_WithRegexPattern(t *testing.T) {
+	input := `resource "tfe_workspace" "example1" {
+  name = "example-1"
+}
+
+resource "tfe_workspace" "example2" {
+  name = "example-2"
+}
+
+resource "tfe_workspace" "example3" {
+  name = "example-3"
+}
+`
+
+	edit := DeleteHCLEdit{
+		KeepOnly: true,
+		TargetBlock: &BlockSelector{
+			Type:   "resource",
+			Labels: []string{"tfe_workspace", "example(1|3)"},
+		},
+		MatchMode: "regex",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl keep_only regex: %v", err)
+	}
+	if !result.Changed || result.Occurrences != 1 {
+		t.Fatalf("expected one removed block, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, `resource "tfe_workspace" "example1"`) || !strings.Contains(out, `resource "tfe_workspace" "example3"`) {
+		t.Fatalf("expected regex-selected workspaces to remain, got:\n%s", out)
+	}
+	if strings.Contains(out, `resource "tfe_workspace" "example2"`) {
+		t.Fatalf("expected regex non-selected workspace removed, got:\n%s", out)
+	}
+}
+
+func TestDeleteHCLEdit_KeepOnly_RequiresBlock(t *testing.T) {
+	input := `resource "tfe_workspace" "example1" {
+  name = "example-1"
+}
+`
+
+	edit := DeleteHCLEdit{KeepOnly: true}
+
+	_, _, err := edit.Apply([]byte(input))
+	if err == nil {
+		t.Fatalf("expected error for keep_only without block")
+	}
+}
