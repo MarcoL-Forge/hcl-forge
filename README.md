@@ -25,6 +25,16 @@ Core goals:
 - `hcl-forge version`: prints the running CLI version.
 - `hcl-forge help [command]`: shows command usage and flags.
 
+## Install
+
+Install the latest released CLI:
+
+- go install github.com/MarcoL-Forge/hcl-forge@latest
+
+Alternative install path (equivalent binary):
+
+- go install github.com/MarcoL-Forge/hcl-forge/cmd/hcl-forge@latest
+
 ## Examples
 
 Sample Terraform inputs and playbooks are in `examples/` with three complexity levels:
