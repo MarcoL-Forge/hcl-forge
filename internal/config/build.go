@@ -34,9 +34,14 @@ func BuildFilePlans(cfg Config) ([]editor.FilePlan, error) {
 			outputPath = sourcePath
 
 		case "target_dir":
-			outputPath, err = document.ResolvePathFrom(cfg.Output.TargetDir, file)
+			outputFile := file
+			if mappedFile, ok := cfg.Output.FileMap[file]; ok {
+				outputFile = mappedFile
+			}
+
+			outputPath, err = document.ResolvePathFrom(cfg.Output.TargetDir, outputFile)
 			if err != nil {
-				return nil, fmt.Errorf("resolve output path %q: %w", file, err)
+				return nil, fmt.Errorf("resolve output path %q: %w", outputFile, err)
 			}
 
 		default:

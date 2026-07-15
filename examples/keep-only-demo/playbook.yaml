@@ -7,29 +7,37 @@ input:
 
 output:
   mode: target_dir
-  target_dir: out/keep-only-demo
+  target_dir: examples/keep-only-demo/out
 
 options:
   workers: 1
 
 edits:
   - type: delete_hcl
+    block:
+      path: module.tfe_workspace.example2
+
+  - type: delete_hcl
+    block:
+      path: module.tfe_workspace.example3.provider.tfe
+
+  - type: delete_hcl
     keep_only: true
     match_mode: regex
     block:
-      block_type: resource
+      block_type: module
       labels: [tfe_workspace, example(1|3)]
 
-  - type: set_attribute
-    block:
-      path: resource.tfe_workspace.example1
-    attribute: execution_mode
-    value_hcl: '"local"'
-    create_if_missing: true
+  # - type: set_attribute
+  #   block:
+  #     path: resource.tfe_workspace.example1
+  #   attribute: execution_mode
+  #   value_hcl: '"local"'
+  #   create_if_missing: true
 
-  - type: set_attribute
-    block:
-      path: resource.tfe_workspace.example3
-    attribute: terraform_version
-    value_hcl: '"1.10.0"'
-    create_if_missing: true
+  # - type: set_attribute
+  #   block:
+  #     path: resource.tfe_workspace.example3
+  #   attribute: terraform_version
+  #   value_hcl: '"1.10.0"'
+  #   create_if_missing: true

@@ -88,6 +88,58 @@ func TestBuildFilePlans_TargetDir(t *testing.T) {
 	}
 }
 
+func TestBuildFilePlans_TargetDirWithFileMap(t *testing.T) {
+	root := t.TempDir()
+	target := t.TempDir()
+
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"a.tf", "nested/b.tf"},
+		},
+		Output: OutputConfig{
+			Mode:      "target_dir",
+			TargetDir: target,
+			FileMap: map[string]string{
+				"a.tf":        "renamed.tf",
+				"nested/b.tf": "custom/path/generated.tf",
+			},
+		},
+		Edits: []EditConfig{{
+			Type: "search_replace",
+			Old:  "old",
+			New:  "new",
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	if len(plans) != 2 {
+		t.Fatalf("expected 2 plans, got %d", len(plans))
+	}
+
+	want := []struct {
+		source string
+		output string
+	}{
+		{source: filepath.Join(root, "a.tf"), output: filepath.Join(target, "renamed.tf")},
+		{source: filepath.Join(root, "nested", "b.tf"), output: filepath.Join(target, "custom", "path", "generated.tf")},
+	}
+
+	for i := range want {
+		if plans[i].SourcePath != want[i].source {
+			t.Fatalf("plan %d source mismatch: got %q want %q", i, plans[i].SourcePath, want[i].source)
+		}
+		if plans[i].OutputPath != want[i].output {
+			t.Fatalf("plan %d output mismatch: got %q want %q", i, plans[i].OutputPath, want[i].output)
+		}
+	}
+}
+
 func TestBuildFilePlans_UnsupportedEditType(t *testing.T) {
 	cfg := Config{
 		Version: 1,

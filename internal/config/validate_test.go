@@ -45,6 +45,25 @@ func TestValidate(t *testing.T) {
 			c.Output.Mode = "target_dir"
 			c.Output.TargetDir = ""
 		}, wantErr: true},
+		{name: "output file_map valid", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"main.tf": "renamed/path/output.tf"}
+		}, wantErr: false},
+		{name: "output file_map requires target_dir mode", mutate: func(c *Config) {
+			c.Output.Mode = "overwrite"
+			c.Output.FileMap = map[string]string{"main.tf": "renamed.tf"}
+		}, wantErr: true},
+		{name: "output file_map unknown input", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"missing.tf": "renamed.tf"}
+		}, wantErr: true},
+		{name: "output file_map empty output", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"main.tf": ""}
+		}, wantErr: true},
 		{name: "no edits", mutate: func(c *Config) { c.Edits = nil }, wantErr: true},
 		{name: "missing edit type", mutate: func(c *Config) { c.Edits = []EditConfig{{Type: ""}} }, wantErr: true},
 		{name: "search_replace missing old", mutate: func(c *Config) {

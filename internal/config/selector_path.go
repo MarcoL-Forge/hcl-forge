@@ -70,8 +70,26 @@ func parsePathNodes(parts []string) ([]pathNode, error) {
 			if i+1 >= len(parts) {
 				return nil, fmt.Errorf("block.path requires %s.<label>", segment)
 			}
-			nodes = append(nodes, pathNode{Type: segment, Labels: []string{parts[i+1]}})
-			i += 2
+
+			labels := []string{parts[i+1]}
+			consume := 2
+
+			// Compatibility: allow module selectors with two labels when the path
+			// clearly follows module.<type>.<name>[.<nested...>].
+			if segment == "module" && i+2 < len(parts) {
+				secondLabel := parts[i+2]
+
+				if i+3 >= len(parts) {
+					labels = append(labels, secondLabel)
+					consume = 3
+				} else if isReservedPathSegment(parts[i+3]) && !isReservedPathSegment(secondLabel) {
+					labels = append(labels, secondLabel)
+					consume = 3
+				}
+			}
+
+			nodes = append(nodes, pathNode{Type: segment, Labels: labels})
+			i += consume
 		case "locals", "terraform":
 			nodes = append(nodes, pathNode{Type: segment})
 			i++
@@ -82,4 +100,13 @@ func parsePathNodes(parts []string) ([]pathNode, error) {
 	}
 
 	return nodes, nil
+}
+
+func isReservedPathSegment(segment string) bool {
+	switch segment {
+	case "resource", "data", "module", "variable", "output", "provider", "locals", "terraform":
+		return true
+	default:
+		return false
+	}
 }

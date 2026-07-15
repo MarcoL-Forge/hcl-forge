@@ -14,8 +14,9 @@ type InputConfig struct {
 }
 
 type OutputConfig struct {
-	Mode      string `yaml:"mode"`
-	TargetDir string `yaml:"target_dir"`
+	Mode      string            `yaml:"mode"`
+	TargetDir string            `yaml:"target_dir"`
+	FileMap   map[string]string `yaml:"file_map"`
 }
 
 type Options struct {

@@ -17,13 +17,6 @@ module "tfe_workspace" "example1" {
   terraform_version = "1.9.8"
 }
 
-module "tfe_workspace" "example2" {
-  name              = "example-workspace2"
-  organization      = "example-org"
-  execution_mode    = "remote"
-  tag_names         = ["hcl-forge", "example"]
-  terraform_version = "1.9.8"
-}
 
 module "tfe_workspace" "example3" {
   name              = "example-workspace3"
@@ -32,7 +25,4 @@ module "tfe_workspace" "example3" {
   tag_names         = ["hcl-forge", "example"]
   terraform_version = "1.9.8"
 
-  provider "tfe" {
-    alias = "example_tfe3"
-  }
 }

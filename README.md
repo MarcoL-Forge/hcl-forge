@@ -45,6 +45,41 @@ go run ./cmd/hcl-forge plan -config examples/hard/playbook.yaml
 go run ./cmd/hcl-forge apply -config examples/hard/playbook.yaml
 ```
 
+## Output Routing
+
+Use output mode and target directory to control where generated files are written.
+
+```yaml
+output:
+	mode: target_dir
+	target_dir: ./out
+```
+
+By default, each input file keeps the same relative path and file name under target_dir.
+
+Use output.file_map to remap specific input files to custom output paths (including renamed file names):
+
+```yaml
+input:
+	root_dir: ./terraform
+	files:
+		- main.tf
+		- modules/gke/cluster.tf
+
+output:
+	mode: target_dir
+	target_dir: ./out
+	file_map:
+		main.tf: generated/root.tf
+		modules/gke/cluster.tf: generated/platform/gke-cluster-prod.tf
+```
+
+Notes:
+
+- output.file_map keys must match entries from input.files exactly.
+- output.file_map is supported only when output.mode is target_dir.
+- Input files not present in output.file_map keep their default relative output path.
+
 ## Pre-commit Quality Checks
 
 The repository uses native `pre-commit` hooks for formatting, linting, and quality checks.
