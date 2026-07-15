@@ -8,6 +8,8 @@ input:
 output:
   mode: target_dir
   target_dir: examples/keep-only-demo/out
+  file_map:
+    example.tf: test.tf
 
 options:
   workers: 1
