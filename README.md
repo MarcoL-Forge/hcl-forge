@@ -22,6 +22,7 @@ Core goals:
 
 - `hcl-forge plan -config <playbook.yaml>`: previews edits without writing files.
 - `hcl-forge apply -config <playbook.yaml>`: applies edits and writes output files.
+- `hcl-forge version`: prints the running CLI version.
 - `hcl-forge help [command]`: shows command usage and flags.
 
 ## Examples

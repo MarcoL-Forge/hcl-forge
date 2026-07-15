@@ -1,11 +1,34 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	original := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+
+	os.Stdout = w
+	fn()
+	_ = w.Close()
+	os.Stdout = original
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("read stdout pipe: %v", err)
+	}
+
+	return buf.String()
+}
 
 func TestRun_RequiresCommand(t *testing.T) {
 	err := Run([]string{"hcl-forge"})
@@ -37,6 +60,40 @@ func TestRun_HelpSubcommands(t *testing.T) {
 	} {
 		if err := Run(args); err != nil {
 			t.Fatalf("expected %v to succeed, got: %v", args, err)
+		}
+	}
+}
+
+func TestRun_VersionCommand(t *testing.T) {
+	originalVersion := Version
+	Version = "1.2.3-test"
+	t.Cleanup(func() { Version = originalVersion })
+
+	out := captureStdout(t, func() {
+		if err := Run([]string{"hcl-forge", "version"}); err != nil {
+			t.Fatalf("expected version command to succeed, got: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(out) != "hcl-forge version 1.2.3-test" {
+		t.Fatalf("unexpected version output: %q", out)
+	}
+}
+
+func TestRun_VersionFlags(t *testing.T) {
+	originalVersion := Version
+	Version = "9.9.9-test"
+	t.Cleanup(func() { Version = originalVersion })
+
+	for _, args := range [][]string{{"hcl-forge", "--version"}, {"hcl-forge", "-v"}} {
+		out := captureStdout(t, func() {
+			if err := Run(args); err != nil {
+				t.Fatalf("expected %v to succeed, got: %v", args, err)
+			}
+		})
+
+		if strings.TrimSpace(out) != "hcl-forge version 9.9.9-test" {
+			t.Fatalf("unexpected version output for %v: %q", args, out)
 		}
 	}
 }
