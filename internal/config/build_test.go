@@ -88,6 +88,58 @@ func TestBuildFilePlans_TargetDir(t *testing.T) {
 	}
 }
 
+func TestBuildFilePlans_TargetDirWithFileMap(t *testing.T) {
+	root := t.TempDir()
+	target := t.TempDir()
+
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"a.tf", "nested/b.tf"},
+		},
+		Output: OutputConfig{
+			Mode:      "target_dir",
+			TargetDir: target,
+			FileMap: map[string]string{
+				"a.tf":        "renamed.tf",
+				"nested/b.tf": "custom/path/generated.tf",
+			},
+		},
+		Edits: []EditConfig{{
+			Type: "search_replace",
+			Old:  "old",
+			New:  "new",
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	if len(plans) != 2 {
+		t.Fatalf("expected 2 plans, got %d", len(plans))
+	}
+
+	want := []struct {
+		source string
+		output string
+	}{
+		{source: filepath.Join(root, "a.tf"), output: filepath.Join(target, "renamed.tf")},
+		{source: filepath.Join(root, "nested", "b.tf"), output: filepath.Join(target, "custom", "path", "generated.tf")},
+	}
+
+	for i := range want {
+		if plans[i].SourcePath != want[i].source {
+			t.Fatalf("plan %d source mismatch: got %q want %q", i, plans[i].SourcePath, want[i].source)
+		}
+		if plans[i].OutputPath != want[i].output {
+			t.Fatalf("plan %d output mismatch: got %q want %q", i, plans[i].OutputPath, want[i].output)
+		}
+	}
+}
+
 func TestBuildFilePlans_UnsupportedEditType(t *testing.T) {
 	cfg := Config{
 		Version: 1,
@@ -228,8 +280,55 @@ func TestBuildFilePlans_DeleteHCLEdit(t *testing.T) {
 		t.Fatalf("expected delete_all to be true")
 	}
 
+	if deleteEdit.KeepOnly {
+		t.Fatalf("expected keep_only to be false")
+	}
+
+	if deleteEdit.MatchMode != "" {
+		t.Fatalf("expected empty match_mode by default, got %q", deleteEdit.MatchMode)
+	}
+
 	if deleteEdit.TargetBlock == nil || deleteEdit.TargetBlock.Type != "resource" {
 		t.Fatalf("unexpected target block: %+v", deleteEdit.TargetBlock)
+	}
+}
+
+func TestBuildFilePlans_DeleteHCLEditKeepOnlyAndRegexMode(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:      "delete_hcl",
+			KeepOnly:  true,
+			MatchMode: "regex",
+			Block: &BlockSelector{
+				BlockType: "resource",
+				Labels:    []string{"tfe_workspace", "example(1|3)"},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	deleteEdit, ok := plans[0].Edits[0].(editor.DeleteHCLEdit)
+	if !ok {
+		t.Fatalf("expected DeleteHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if !deleteEdit.KeepOnly {
+		t.Fatalf("expected keep_only to be true")
+	}
+
+	if deleteEdit.MatchMode != "regex" {
+		t.Fatalf("expected match_mode regex, got %q", deleteEdit.MatchMode)
 	}
 }
 

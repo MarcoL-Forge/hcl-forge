@@ -45,6 +45,25 @@ func TestValidate(t *testing.T) {
 			c.Output.Mode = "target_dir"
 			c.Output.TargetDir = ""
 		}, wantErr: true},
+		{name: "output file_map valid", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"main.tf": "renamed/path/output.tf"}
+		}, wantErr: false},
+		{name: "output file_map requires target_dir mode", mutate: func(c *Config) {
+			c.Output.Mode = "overwrite"
+			c.Output.FileMap = map[string]string{"main.tf": "renamed.tf"}
+		}, wantErr: true},
+		{name: "output file_map unknown input", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"missing.tf": "renamed.tf"}
+		}, wantErr: true},
+		{name: "output file_map empty output", mutate: func(c *Config) {
+			c.Output.Mode = "target_dir"
+			c.Output.TargetDir = "./out"
+			c.Output.FileMap = map[string]string{"main.tf": ""}
+		}, wantErr: true},
 		{name: "no edits", mutate: func(c *Config) { c.Edits = nil }, wantErr: true},
 		{name: "missing edit type", mutate: func(c *Config) { c.Edits = []EditConfig{{Type: ""}} }, wantErr: true},
 		{name: "search_replace missing old", mutate: func(c *Config) {
@@ -167,6 +186,52 @@ func TestValidate(t *testing.T) {
 				Type:      "delete_hcl",
 				Attribute: "location",
 				DeleteAll: true,
+			}}
+		}, wantErr: false},
+		{name: "delete_hcl keep_only valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				KeepOnly:  true,
+				MatchMode: "glob",
+				Block: &BlockSelector{
+					BlockType: "resource",
+					Labels:    []string{"tfe_workspace", "example*"},
+				},
+			}}
+		}, wantErr: false},
+		{name: "delete_hcl keep_only requires block", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:     "delete_hcl",
+				KeepOnly: true,
+			}}
+		}, wantErr: true},
+		{name: "delete_hcl keep_only cannot combine attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				KeepOnly:  true,
+				Attribute: "location",
+				Block: &BlockSelector{
+					BlockType: "resource",
+					Labels:    []string{"google_storage_bucket", "bucket"},
+				},
+			}}
+		}, wantErr: true},
+		{name: "delete_hcl invalid match mode", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				Attribute: "location",
+				MatchMode: "invalid",
+			}}
+		}, wantErr: true},
+		{name: "delete_hcl regex match mode", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "delete_hcl",
+				DeleteAll: true,
+				MatchMode: "regex",
+				Block: &BlockSelector{
+					BlockType: "module",
+					Labels:    []string{"service-account-(dev|prod)"},
+				},
 			}}
 		}, wantErr: false},
 		{name: "delete_hcl path selector accepted", mutate: func(c *Config) {

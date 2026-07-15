@@ -104,3 +104,42 @@ func TestSelectorFromPath_RejectsEmptySegment(t *testing.T) {
 		t.Fatalf("expected error for empty segment")
 	}
 }
+
+func TestSelectorFromPath_ModuleWithTwoLabels(t *testing.T) {
+	resolved, err := selectorFromPath("module.tfe_workspace.example3")
+	if err != nil {
+		t.Fatalf("selectorFromPath failed: %v", err)
+	}
+
+	if resolved.Type != "module" {
+		t.Fatalf("unexpected target type: %q", resolved.Type)
+	}
+	if len(resolved.Labels) != 2 || resolved.Labels[0] != "tfe_workspace" || resolved.Labels[1] != "example3" {
+		t.Fatalf("unexpected target labels: %+v", resolved.Labels)
+	}
+}
+
+func TestSelectorFromPath_ModuleWithTwoLabelsNestedProvider(t *testing.T) {
+	resolved, err := selectorFromPath("module.tfe_workspace.example3.provider.tfe")
+	if err != nil {
+		t.Fatalf("selectorFromPath failed: %v", err)
+	}
+
+	if resolved.Type != "provider" {
+		t.Fatalf("unexpected target type: %q", resolved.Type)
+	}
+	if len(resolved.Labels) != 1 || resolved.Labels[0] != "tfe" {
+		t.Fatalf("unexpected target labels: %+v", resolved.Labels)
+	}
+
+	if len(resolved.Parents) != 1 {
+		t.Fatalf("expected 1 parent, got %d", len(resolved.Parents))
+	}
+
+	if resolved.Parents[0].SelectedType() != "module" {
+		t.Fatalf("unexpected parent type: %q", resolved.Parents[0].SelectedType())
+	}
+	if len(resolved.Parents[0].Labels) != 2 || resolved.Parents[0].Labels[0] != "tfe_workspace" || resolved.Parents[0].Labels[1] != "example3" {
+		t.Fatalf("unexpected parent labels: %+v", resolved.Parents[0].Labels)
+	}
+}

@@ -35,6 +35,31 @@ func Validate(cfg Config) error {
 		return fmt.Errorf("output.target_dir is required when output.mode is target_dir")
 	}
 
+	if len(cfg.Output.FileMap) > 0 {
+		if cfg.Output.Mode != "target_dir" {
+			return fmt.Errorf("output.file_map is only supported when output.mode is target_dir")
+		}
+
+		inputFiles := make(map[string]struct{}, len(cfg.Input.Files))
+		for _, file := range cfg.Input.Files {
+			inputFiles[file] = struct{}{}
+		}
+
+		for inputFile, outputFile := range cfg.Output.FileMap {
+			if inputFile == "" {
+				return fmt.Errorf("output.file_map cannot contain an empty input file key")
+			}
+
+			if outputFile == "" {
+				return fmt.Errorf("output.file_map[%q] cannot be empty", inputFile)
+			}
+
+			if _, ok := inputFiles[inputFile]; !ok {
+				return fmt.Errorf("output.file_map[%q] does not match any input.files entry", inputFile)
+			}
+		}
+	}
+
 	if len(cfg.Edits) == 0 {
 		return fmt.Errorf("config must contain at least one edit")
 	}
@@ -70,6 +95,20 @@ func Validate(cfg Config) error {
 			}
 
 		case "delete_hcl":
+			switch edit.MatchMode {
+			case "", "glob", "regex":
+			default:
+				return fmt.Errorf("edits[%d]: delete_hcl match_mode must be one of glob|regex", i)
+			}
+
+			if edit.KeepOnly && edit.Block == nil {
+				return fmt.Errorf("edits[%d]: delete_hcl keep_only requires block selector", i)
+			}
+
+			if edit.KeepOnly && edit.Attribute != "" {
+				return fmt.Errorf("edits[%d]: delete_hcl keep_only cannot be combined with attribute", i)
+			}
+
 			if edit.Block != nil {
 				if err := validateBlockSelector(*edit.Block); err != nil {
 					return fmt.Errorf("edits[%d]: %w", i, err)

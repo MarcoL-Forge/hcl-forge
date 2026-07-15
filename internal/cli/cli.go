@@ -8,10 +8,15 @@ import (
 func Run(args []string) error {
 	if len(args) < 2 {
 		printHelp("")
-		return fmt.Errorf("expected command: plan or apply")
+		return fmt.Errorf("expected command: plan, apply, or version")
 	}
 
 	cmd := strings.ToLower(args[1])
+	if cmd == "-v" || cmd == "--version" || cmd == "version" {
+		printVersion()
+		return nil
+	}
+
 	if cmd == "-h" || cmd == "--help" || cmd == "help" {
 		subcommand := ""
 		if len(args) > 2 {
@@ -72,11 +77,13 @@ Usage:
 Commands:
   plan        Generate a dry-run plan without writing files
   apply       Apply edits and write files
+	version     Print CLI version
   help        Show help for a command
 
 Examples:
   hcl-forge plan -config examples/easy/playbook.yaml
   hcl-forge apply -config examples/easy/playbook.yaml
+	hcl-forge version
   hcl-forge help plan`)
 	}
 }

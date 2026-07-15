@@ -22,6 +22,7 @@ Core goals:
 
 - `hcl-forge plan -config <playbook.yaml>`: previews edits without writing files.
 - `hcl-forge apply -config <playbook.yaml>`: applies edits and writes output files.
+- `hcl-forge version`: prints the running CLI version.
 - `hcl-forge help [command]`: shows command usage and flags.
 
 ## Examples
@@ -44,6 +45,41 @@ go run ./cmd/hcl-forge apply -config examples/medium/playbook.yaml
 go run ./cmd/hcl-forge plan -config examples/hard/playbook.yaml
 go run ./cmd/hcl-forge apply -config examples/hard/playbook.yaml
 ```
+
+## Output Routing
+
+Use output mode and target directory to control where generated files are written.
+
+```yaml
+output:
+	mode: target_dir
+	target_dir: ./out
+```
+
+By default, each input file keeps the same relative path and file name under target_dir.
+
+Use output.file_map to remap specific input files to custom output paths (including renamed file names):
+
+```yaml
+input:
+	root_dir: ./terraform
+	files:
+		- main.tf
+		- modules/gke/cluster.tf
+
+output:
+	mode: target_dir
+	target_dir: ./out
+	file_map:
+		main.tf: generated/root.tf
+		modules/gke/cluster.tf: generated/platform/gke-cluster-prod.tf
+```
+
+Notes:
+
+- output.file_map keys must match entries from input.files exactly.
+- output.file_map is supported only when output.mode is target_dir.
+- Input files not present in output.file_map keep their default relative output path.
 
 ## Pre-commit Quality Checks
 
@@ -370,6 +406,17 @@ edits:
 - when a targeted `block` is missing for attribute deletion, the edit is a no-op (idempotent) instead of a hard failure
 - wildcard matching is supported in `delete_hcl` selectors and `attribute` names (glob patterns like `*`, `?`, `[abc]`)
 
+`keep_only: true` behavior (inverse selector):
+
+- keeps blocks that match the selector and removes non-matching blocks in the same selector scope
+- requires a `block` selector
+- cannot be combined with `attribute`
+
+`match_mode` behavior:
+
+- `glob` (default): selector and attribute patterns use glob matching
+- `regex`: selector and attribute patterns use regular expressions (full-string match)
+
 Wildcard example:
 
 ```yaml
@@ -383,6 +430,25 @@ edits:
 	- type: delete_hcl
 		attribute: enable_*
 		delete_all: true
+```
+
+Keep-only example with wildcard and regex:
+
+```yaml
+edits:
+	- type: delete_hcl
+		keep_only: true
+		match_mode: glob
+		block:
+			block_type: resource
+			labels: [tfe_workspace, example*]
+
+	- type: delete_hcl
+		keep_only: true
+		match_mode: regex
+		block:
+			block_type: resource
+			labels: [tfe_workspace, example(1|3)]
 ```
 
 ## Set Attribute Edits

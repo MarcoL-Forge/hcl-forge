@@ -14,8 +14,9 @@ type InputConfig struct {
 }
 
 type OutputConfig struct {
-	Mode      string `yaml:"mode"`
-	TargetDir string `yaml:"target_dir"`
+	Mode      string            `yaml:"mode"`
+	TargetDir string            `yaml:"target_dir"`
+	FileMap   map[string]string `yaml:"file_map"`
 }
 
 type Options struct {
@@ -36,7 +37,9 @@ type EditConfig struct {
 	Guard             *GuardConfig `yaml:"guard"`
 
 	// delete_hcl
-	DeleteAll bool `yaml:"delete_all"`
+	DeleteAll bool   `yaml:"delete_all"`
+	KeepOnly  bool   `yaml:"keep_only"`
+	MatchMode string `yaml:"match_mode"`
 
 	// set_attribute
 	ValueHCL        string `yaml:"value_hcl"`
