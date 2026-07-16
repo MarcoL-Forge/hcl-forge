@@ -1,6 +1,9 @@
 package editor
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSearchReplaceEdit_Apply_ReplacesAllOccurrences(t *testing.T) {
 	edit := SearchReplaceEdit{Old: "foo", New: "bar"}
@@ -50,5 +53,188 @@ func TestSearchReplaceEdit_Apply_EmptyOldValue(t *testing.T) {
 	_, _, err := edit.Apply([]byte("foo"))
 	if err == nil {
 		t.Fatalf("expected error for empty old value")
+	}
+}
+
+func TestSearchReplaceEdit_Apply_TargetedByPathAndAttribute(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  name = "example-rtl-int-workspace1-gke"
+}
+
+module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+`
+
+	edit := SearchReplaceEdit{
+		Old: "rtl-int-",
+		New: "prod-",
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "example2"},
+		},
+		Attribute: "name",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply targeted search_replace: %v", err)
+	}
+
+	out := string(updated)
+	if !result.Changed || result.Occurrences != 1 {
+		t.Fatalf("expected one targeted replacement, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	if !strings.Contains(out, `name = "example-prod-workspace2-prj"`) {
+		t.Fatalf("expected example2 name to be updated, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `name = "example-rtl-int-workspace1-gke"`) {
+		t.Fatalf("expected example1 name to remain unchanged, got:\n%s", out)
+	}
+}
+
+func TestSearchReplaceEdit_Apply_TargetBlockNotFound_IsNoOp(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  name = "example-rtl-int-workspace1-gke"
+}
+`
+
+	edit := SearchReplaceEdit{
+		Old: "rtl-int-",
+		New: "prod-",
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "missing"},
+		},
+		Attribute: "name",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("expected no error for missing target block, got: %v", err)
+	}
+
+	if result.Changed || result.Occurrences != 0 {
+		t.Fatalf("expected no change for missing target block, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	if string(updated) != input {
+		t.Fatalf("expected output to remain unchanged")
+	}
+}
+
+func TestSearchReplaceEdit_Apply_RegexAcrossMatchingWorkspaces(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  name = "example-rtl-int-workspace1-gke01"
+}
+
+module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+
+module "tfe_workspace" "example3" {
+  name = "example-rtl-int-workspace3-sm"
+}
+`
+
+	edit := SearchReplaceEdit{
+		Old: "rtl-int-|01",
+		New: "",
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "example.*"},
+		},
+		Attribute: "name",
+		MatchMode: "regex",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply regex scoped search_replace: %v", err)
+	}
+
+	out := string(updated)
+	if !result.Changed || result.Occurrences != 4 {
+		t.Fatalf("expected four regex replacements, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	if !strings.Contains(out, `name = "example-workspace1-gke"`) {
+		t.Fatalf("expected example1 name stripped of rtl-int-/01, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `name = "example-workspace2-prj"`) {
+		t.Fatalf("expected example2 name stripped of rtl-int-, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `name = "example-workspace3-sm"`) {
+		t.Fatalf("expected example3 name stripped of rtl-int-, got:\n%s", out)
+	}
+}
+
+func TestSearchReplaceEdit_Apply_InvalidRegex(t *testing.T) {
+	edit := SearchReplaceEdit{
+		Old:       "(",
+		New:       "x",
+		MatchMode: "regex",
+	}
+
+	_, _, err := edit.Apply([]byte("foo"))
+	if err == nil {
+		t.Fatalf("expected invalid regex error")
+	}
+}
+
+func TestSearchReplaceEdit_Apply_GlobAcrossMatchingWorkspaces(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  name = "example-rtl-int-workspace1-gke01"
+}
+
+module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+
+module "tfe_workspace" "example3" {
+  name = "example-rtl-int-workspace3-sm"
+}
+`
+
+	edit := SearchReplaceEdit{
+		Old: "rtl-int-*",
+		New: "prod-",
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "example*"},
+		},
+		Attribute: "name",
+		MatchMode: "glob",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply glob scoped search_replace: %v", err)
+	}
+
+	out := string(updated)
+	if !result.Changed || result.Occurrences != 3 {
+		t.Fatalf("expected three glob replacements, got changed=%v occurrences=%d", result.Changed, result.Occurrences)
+	}
+
+	if !strings.Contains(out, `name = "example-prod-"`) {
+		t.Fatalf("expected glob replacement to apply, got:\n%s", out)
+	}
+}
+
+func TestSearchReplaceEdit_Apply_InvalidGlob(t *testing.T) {
+	edit := SearchReplaceEdit{
+		Old:       "[",
+		New:       "x",
+		MatchMode: "glob",
+	}
+
+	_, _, err := edit.Apply([]byte("foo"))
+	if err == nil {
+		t.Fatalf("expected invalid glob error")
 	}
 }

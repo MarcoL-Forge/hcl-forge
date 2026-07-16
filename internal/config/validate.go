@@ -75,6 +75,22 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: search_replace requires old", i)
 			}
 
+			switch edit.MatchMode {
+			case "", "glob", "regex":
+			default:
+				return fmt.Errorf("edits[%d]: search_replace match_mode must be one of glob|regex", i)
+			}
+
+			if edit.Block != nil {
+				if edit.Attribute == "" {
+					return fmt.Errorf("edits[%d]: search_replace with block selector requires attribute", i)
+				}
+
+				if err := validateBlockSelector(*edit.Block); err != nil {
+					return fmt.Errorf("edits[%d]: %w", i, err)
+				}
+			}
+
 		case "insert_hcl":
 			if edit.HCL == "" {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
