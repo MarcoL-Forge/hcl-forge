@@ -47,7 +47,7 @@ Available commands:
 - `hcl-forge version`
 - `hcl-forge help`
 
-For full command list, flags, and usage examples, see:
+For full command list, edit operations, selector syntax, and usage examples, see:
 
 - `docs/commands-and-examples/README.md`
 

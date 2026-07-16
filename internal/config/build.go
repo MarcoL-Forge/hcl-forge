@@ -61,9 +61,34 @@ func BuildFilePlans(cfg Config) ([]editor.FilePlan, error) {
 func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 	switch editCfg.Type {
 	case "search_replace":
+		var targetBlock *editor.BlockSelector
+		if editCfg.Block != nil {
+			resolved, err := resolveBlockSelector(*editCfg.Block)
+			if err != nil {
+				return nil, err
+			}
+
+			parents := make([]editor.ParentSelector, 0, len(resolved.Parents))
+			for _, parent := range resolved.Parents {
+				parents = append(parents, editor.ParentSelector{
+					Type:   parent.SelectedType(),
+					Labels: append([]string(nil), parent.Labels...),
+				})
+			}
+
+			targetBlock = &editor.BlockSelector{
+				Type:    resolved.Type,
+				Labels:  append([]string(nil), resolved.Labels...),
+				Parents: parents,
+			}
+		}
+
 		return editor.SearchReplaceEdit{
-			Old: editCfg.Old,
-			New: editCfg.New,
+			Old:         editCfg.Old,
+			New:         editCfg.New,
+			TargetBlock: targetBlock,
+			Attribute:   editCfg.Attribute,
+			MatchMode:   editCfg.MatchMode,
 		}, nil
 
 	case "insert_hcl":

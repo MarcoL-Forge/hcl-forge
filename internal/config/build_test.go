@@ -184,6 +184,98 @@ func TestBuildFilePlans_UnsupportedOutputMode(t *testing.T) {
 	}
 }
 
+func TestBuildFilePlans_SearchReplaceScopedByPathAndAttribute(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:      "search_replace",
+			Old:       "rtl-int-",
+			New:       "prod-",
+			Attribute: "name",
+			Block: &BlockSelector{
+				Path: "module.tfe_workspace.example2",
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	if len(plans) != 1 || len(plans[0].Edits) != 1 {
+		t.Fatalf("expected one plan with one edit")
+	}
+
+	searchEdit, ok := plans[0].Edits[0].(editor.SearchReplaceEdit)
+	if !ok {
+		t.Fatalf("expected SearchReplaceEdit, got %T", plans[0].Edits[0])
+	}
+
+	if searchEdit.Attribute != "name" {
+		t.Fatalf("unexpected attribute: %q", searchEdit.Attribute)
+	}
+
+	if searchEdit.MatchMode != "" {
+		t.Fatalf("unexpected default match_mode: %q", searchEdit.MatchMode)
+	}
+
+	if searchEdit.TargetBlock == nil {
+		t.Fatalf("expected target block to be set")
+	}
+
+	if searchEdit.TargetBlock.Type != "module" {
+		t.Fatalf("unexpected target block type: %q", searchEdit.TargetBlock.Type)
+	}
+
+	if len(searchEdit.TargetBlock.Labels) != 2 || searchEdit.TargetBlock.Labels[0] != "tfe_workspace" || searchEdit.TargetBlock.Labels[1] != "example2" {
+		t.Fatalf("unexpected target block labels: %+v", searchEdit.TargetBlock.Labels)
+	}
+}
+
+func TestBuildFilePlans_SearchReplaceRegexMatchMode(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tf"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:      "search_replace",
+			Old:       "rtl-int-|01",
+			New:       "",
+			MatchMode: "regex",
+			Attribute: "name",
+			Block: &BlockSelector{
+				BlockType: "module",
+				Labels:    []string{"tfe_workspace", "example.*"},
+			},
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	searchEdit, ok := plans[0].Edits[0].(editor.SearchReplaceEdit)
+	if !ok {
+		t.Fatalf("expected SearchReplaceEdit, got %T", plans[0].Edits[0])
+	}
+
+	if searchEdit.MatchMode != "regex" {
+		t.Fatalf("expected regex match_mode, got %q", searchEdit.MatchMode)
+	}
+}
+
 func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
 	root := t.TempDir()
 	cfg := Config{

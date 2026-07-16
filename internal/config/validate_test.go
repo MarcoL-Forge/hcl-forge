@@ -69,6 +69,48 @@ func TestValidate(t *testing.T) {
 		{name: "search_replace missing old", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{Type: "search_replace", Old: "", New: "x"}}
 		}, wantErr: true},
+		{name: "search_replace scoped valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "search_replace",
+				Old:       "rtl-int-",
+				New:       "prod-",
+				Attribute: "name",
+				Block: &BlockSelector{
+					Path: "module.tfe_workspace.example2",
+				},
+			}}
+		}, wantErr: false},
+		{name: "search_replace scoped missing attribute", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "search_replace",
+				Old:  "rtl-int-",
+				New:  "prod-",
+				Block: &BlockSelector{
+					Path: "module.tfe_workspace.example2",
+				},
+			}}
+		}, wantErr: true},
+		{name: "search_replace regex mode valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "search_replace",
+				Old:       "rtl-int-|01",
+				New:       "",
+				MatchMode: "regex",
+				Attribute: "name",
+				Block: &BlockSelector{
+					BlockType: "module",
+					Labels:    []string{"tfe_workspace", "example.*"},
+				},
+			}}
+		}, wantErr: false},
+		{name: "search_replace invalid match mode", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:      "search_replace",
+				Old:       "rtl-int-",
+				New:       "prod-",
+				MatchMode: "invalid",
+			}}
+		}, wantErr: true},
 		{name: "unsupported edit type", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{Type: "unknown"}}
 		}, wantErr: true},
