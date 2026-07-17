@@ -20,6 +20,10 @@ type DeleteHCLEdit struct {
 }
 
 func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
+	return e.ApplyWithOriginal(data, data)
+}
+
+func (e DeleteHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, EditResult, error) {
 	matcher, err := newDeleteMatcher(e.MatchMode)
 	if err != nil {
 		return nil, EditResult{}, err
@@ -30,12 +34,17 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		return nil, EditResult{}, fmt.Errorf("parse input hcl: %s", diags.Error())
 	}
 
+	originalFile, originalDiags := hclwrite.ParseConfig(original, "original.tf", hcl.InitialPos)
+	if originalDiags.HasErrors() {
+		return nil, EditResult{}, fmt.Errorf("parse original hcl: %s", originalDiags.Error())
+	}
+
 	if e.KeepOnly {
 		if e.TargetBlock == nil {
 			return nil, EditResult{}, fmt.Errorf("keep_only requires block selector")
 		}
 
-		removed := keepOnlyMatchingBlocks(file.Body(), *e.TargetBlock, matcher)
+		removed := keepOnlyMatchingBlocksByOriginal(file.Body(), originalFile.Body(), *e.TargetBlock, matcher)
 		if removed == 0 {
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "no blocks removed by keep_only"}, nil
 		}
@@ -46,14 +55,17 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	if e.Attribute != "" {
 		targetBodies := []*hclwrite.Body{file.Body()}
 		if e.TargetBlock != nil {
-			if e.DeleteAll {
-				targetBodies = findMatchingBodies(file.Body(), *e.TargetBlock, matcher)
-			} else {
-				target := findMatchingBlock(file.Body(), *e.TargetBlock)
-				if target == nil {
-					return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
+			positions := findMatchingBodyPositions(originalFile.Body(), *e.TargetBlock, matcher)
+			if !e.DeleteAll && len(positions) > 1 {
+				positions = positions[:1]
+			}
+
+			targetBodies = make([]*hclwrite.Body, 0, len(positions))
+			for _, position := range positions {
+				targetBody := bodyAtPosition(file.Body(), position)
+				if targetBody != nil {
+					targetBodies = append(targetBodies, targetBody)
 				}
-				targetBodies = []*hclwrite.Body{target.Body()}
 			}
 
 			if len(targetBodies) == 0 {
@@ -111,11 +123,22 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		return nil, EditResult{}, fmt.Errorf("delete_hcl requires attribute or block selector")
 	}
 
+	positions := findMatchingBodyPositions(originalFile.Body(), *e.TargetBlock, matcher)
+	if len(positions) == 0 {
+		return data, EditResult{Changed: false, Occurrences: 0, Message: "block not found"}, nil
+	}
+
+	if !e.DeleteAll {
+		positions = positions[:1]
+	} else {
+		sortBodyPositionsForDeletion(positions)
+	}
+
 	removed := 0
-	if e.DeleteAll {
-		removed = removeAllMatchingBlocks(file.Body(), *e.TargetBlock, matcher)
-	} else if removeFirstMatchingBlock(file.Body(), *e.TargetBlock, matcher) {
-		removed = 1
+	for _, position := range positions {
+		if removeBlockAtPosition(file.Body(), position) {
+			removed++
+		}
 	}
 
 	if removed == 0 {
@@ -125,47 +148,16 @@ func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	return file.Bytes(), EditResult{Changed: true, Occurrences: removed, Message: "block deleted"}, nil
 }
 
-func removeFirstMatchingBlock(body *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) bool {
-	return removeFirstMatchingBlockWithParents(body, selector, nil, matcher)
-}
-
-func removeFirstMatchingBlockWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector, matcher deleteMatcher) bool {
-	for _, block := range body.Blocks() {
-		if blockMatchesDeleteSelector(block, selector, matcher) && parentsMatchDeleteSelector(ancestry, selector.Parents, matcher) {
-			body.RemoveBlock(block)
-			return true
-		}
-
-		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
-			Type:   block.Type(),
-			Labels: append([]string(nil), block.Labels()...),
-		})
-
-		if removed := removeFirstMatchingBlockWithParents(block.Body(), selector, nextAncestry, matcher); removed {
-			return true
-		}
+func keepOnlyMatchingBlocksByOriginal(currentRoot, originalRoot *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) int {
+	positions := findKeepOnlyRemovalPositions(originalRoot, selector, matcher)
+	if len(positions) == 0 {
+		return 0
 	}
 
-	return false
-}
-
-func removeAllMatchingBlocks(body *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) int {
-	return removeAllMatchingBlocksWithParents(body, selector, nil, matcher)
-}
-
-func removeAllMatchingBlocksWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector, matcher deleteMatcher) int {
+	sortBodyPositionsForDeletion(positions)
 	removed := 0
-
-	for _, block := range body.Blocks() {
-		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
-			Type:   block.Type(),
-			Labels: append([]string(nil), block.Labels()...),
-		})
-
-		removed += removeAllMatchingBlocksWithParents(block.Body(), selector, nextAncestry, matcher)
-
-		if blockMatchesDeleteSelector(block, selector, matcher) && parentsMatchDeleteSelector(ancestry, selector.Parents, matcher) {
-			body.RemoveBlock(block)
+	for _, position := range positions {
+		if removeBlockAtPosition(currentRoot, position) {
 			removed++
 		}
 	}
@@ -173,27 +165,87 @@ func removeAllMatchingBlocksWithParents(body *hclwrite.Body, selector BlockSelec
 	return removed
 }
 
-func findMatchingBodies(body *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) []*hclwrite.Body {
-	return findMatchingBodiesWithParents(body, selector, nil, matcher)
+func findKeepOnlyRemovalPositions(root *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) []bodyPosition {
+	return findKeepOnlyRemovalPositionsWithParents(root, selector, nil, nil, matcher)
 }
 
-func findMatchingBodiesWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector, matcher deleteMatcher) []*hclwrite.Body {
-	bodies := make([]*hclwrite.Body, 0)
+func findKeepOnlyRemovalPositionsWithParents(
+	body *hclwrite.Body,
+	selector BlockSelector,
+	ancestry []ParentSelector,
+	path bodyPosition,
+	matcher deleteMatcher,
+) []bodyPosition {
+	positions := make([]bodyPosition, 0)
 
-	for _, block := range body.Blocks() {
-		if blockMatchesDeleteSelector(block, selector, matcher) && parentsMatchDeleteSelector(ancestry, selector.Parents, matcher) {
-			bodies = append(bodies, block.Body())
-		}
-
+	for index, block := range body.Blocks() {
+		nextPath := append(append(bodyPosition(nil), path...), index)
 		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
 			Type:   block.Type(),
 			Labels: append([]string(nil), block.Labels()...),
 		})
 
-		bodies = append(bodies, findMatchingBodiesWithParents(block.Body(), selector, nextAncestry, matcher)...)
+		positions = append(positions, findKeepOnlyRemovalPositionsWithParents(block.Body(), selector, nextAncestry, nextPath, matcher)...)
+
+		if !blockInKeepOnlyScope(block, selector, ancestry, matcher) {
+			continue
+		}
+
+		if blockMatchesDeleteSelector(block, selector, matcher) {
+			continue
+		}
+
+		positions = append(positions, nextPath)
 	}
 
-	return bodies
+	return positions
+}
+
+func sortBodyPositionsForDeletion(positions []bodyPosition) {
+	sort.Slice(positions, func(i, j int) bool {
+		a := positions[i]
+		b := positions[j]
+
+		if len(a) != len(b) {
+			return len(a) > len(b)
+		}
+
+		for k := 0; k < len(a); k++ {
+			if a[k] == b[k] {
+				continue
+			}
+
+			return a[k] > b[k]
+		}
+
+		return false
+	})
+}
+
+func removeBlockAtPosition(root *hclwrite.Body, position bodyPosition) bool {
+	if len(position) == 0 {
+		return false
+	}
+
+	parent := root
+	for i := 0; i < len(position)-1; i++ {
+		blocks := parent.Blocks()
+		idx := position[i]
+		if idx < 0 || idx >= len(blocks) {
+			return false
+		}
+
+		parent = blocks[idx].Body()
+	}
+
+	blocks := parent.Blocks()
+	idx := position[len(position)-1]
+	if idx < 0 || idx >= len(blocks) {
+		return false
+	}
+
+	parent.RemoveBlock(blocks[idx])
+	return true
 }
 
 func collectAllBodies(body *hclwrite.Body) []*hclwrite.Body {
@@ -274,36 +326,6 @@ func parentsMatchDeleteSelector(ancestry, expected []ParentSelector, matcher del
 	}
 
 	return true
-}
-
-func keepOnlyMatchingBlocks(body *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) int {
-	return keepOnlyMatchingBlocksWithParents(body, selector, nil, matcher)
-}
-
-func keepOnlyMatchingBlocksWithParents(body *hclwrite.Body, selector BlockSelector, ancestry []ParentSelector, matcher deleteMatcher) int {
-	removed := 0
-
-	for _, block := range body.Blocks() {
-		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
-			Type:   block.Type(),
-			Labels: append([]string(nil), block.Labels()...),
-		})
-
-		removed += keepOnlyMatchingBlocksWithParents(block.Body(), selector, nextAncestry, matcher)
-
-		if !blockInKeepOnlyScope(block, selector, ancestry, matcher) {
-			continue
-		}
-
-		if blockMatchesDeleteSelector(block, selector, matcher) {
-			continue
-		}
-
-		body.RemoveBlock(block)
-		removed++
-	}
-
-	return removed
 }
 
 func blockInKeepOnlyScope(block *hclwrite.Block, selector BlockSelector, ancestry []ParentSelector, matcher deleteMatcher) bool {

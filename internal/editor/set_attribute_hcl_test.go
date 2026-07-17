@@ -138,3 +138,40 @@ func TestSetAttributeHCLEdit_AlreadySet_IsNoOp(t *testing.T) {
 		t.Fatalf("expected unchanged output")
 	}
 }
+
+func TestApplyEdits_SetAttributeScopedUsesOriginalSelectorSnapshot(t *testing.T) {
+	input := []byte(`module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+`)
+
+	edits := []Edit{
+		SearchReplaceEdit{Old: "example2", New: "example2prd"},
+		SetAttributeHCLEdit{
+			TargetBlock: &BlockSelector{
+				Type:   "module",
+				Labels: []string{"tfe_workspace", "example2"},
+			},
+			Attribute: "name",
+			ValueHCL:  `"renamed-by-set-attribute"`,
+		},
+	}
+
+	updated, results, err := ApplyEdits(input, edits)
+	if err != nil {
+		t.Fatalf("apply edits: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 edit results, got %d", len(results))
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, `module "tfe_workspace" "example2prd"`) {
+		t.Fatalf("expected first edit to rename module label, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `name = "renamed-by-set-attribute"`) {
+		t.Fatalf("expected set_attribute to target old selector snapshot, got:\n%s", out)
+	}
+}

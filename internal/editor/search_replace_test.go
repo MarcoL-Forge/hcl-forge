@@ -238,3 +238,41 @@ func TestSearchReplaceEdit_Apply_InvalidGlob(t *testing.T) {
 		t.Fatalf("expected invalid glob error")
 	}
 }
+
+func TestApplyEdits_SearchReplaceScopedUsesOriginalSelectorSnapshot(t *testing.T) {
+	input := []byte(`module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+`)
+
+	edits := []Edit{
+		SearchReplaceEdit{Old: "example2", New: "example2prd"},
+		SearchReplaceEdit{
+			Old: "rtl-int-",
+			New: "prd-",
+			TargetBlock: &BlockSelector{
+				Type:   "module",
+				Labels: []string{"tfe_workspace", "example2"},
+			},
+			Attribute: "name",
+		},
+	}
+
+	updated, results, err := ApplyEdits(input, edits)
+	if err != nil {
+		t.Fatalf("apply edits: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 edit results, got %d", len(results))
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, `module "tfe_workspace" "example2prd"`) {
+		t.Fatalf("expected first edit to rename module label, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `name = "example-prd-workspace2-prj"`) {
+		t.Fatalf("expected second edit to target old selector and update name, got:\n%s", out)
+	}
+}
