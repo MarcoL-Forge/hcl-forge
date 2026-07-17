@@ -270,3 +270,39 @@ func TestInsertHCLEdit_BlockSnippet_IsIdempotent(t *testing.T) {
 		t.Fatalf("expected single versioning block after rerun, got:\n%s", out)
 	}
 }
+
+func TestApplyEdits_InsertScopedUsesOriginalSelectorSnapshot(t *testing.T) {
+	input := []byte(`module "tfe_workspace" "example2" {
+  name = "example-rtl-int-workspace2-prj"
+}
+`)
+
+	edits := []Edit{
+		SearchReplaceEdit{Old: "example2", New: "example2prd"},
+		InsertHCLEdit{
+			HCL: `description = "managed by hcl-forge"`,
+			TargetBlock: &BlockSelector{
+				Type:   "module",
+				Labels: []string{"tfe_workspace", "example2"},
+			},
+		},
+	}
+
+	updated, results, err := ApplyEdits(input, edits)
+	if err != nil {
+		t.Fatalf("apply edits: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 edit results, got %d", len(results))
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, `module "tfe_workspace" "example2prd"`) {
+		t.Fatalf("expected first edit to rename module label, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, `description = "managed by hcl-forge"`) {
+		t.Fatalf("expected insert to target old selector snapshot, got:\n%s", out)
+	}
+}

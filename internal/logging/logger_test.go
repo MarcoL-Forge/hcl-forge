@@ -84,7 +84,9 @@ func TestDefaultLogger_SetAndGet(t *testing.T) {
 		t.Fatalf("create logger: %v", err)
 	}
 	if closer != nil {
-		defer closer.Close()
+		defer func() {
+			_ = closer.Close()
+		}()
 	}
 
 	SetDefault(logger)

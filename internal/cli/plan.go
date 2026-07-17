@@ -59,7 +59,11 @@ func runPlan(args []string) error {
 		return err
 	}
 	if closer != nil {
-		defer closer.Close()
+		defer func() {
+			if closeErr := closer.Close(); closeErr != nil {
+				logger.Error("plan_log_close_failed", map[string]any{"error": closeErr.Error()})
+			}
+		}()
 	}
 	logging.SetDefault(logger)
 

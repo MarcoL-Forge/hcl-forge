@@ -15,6 +15,10 @@ type SetAttributeHCLEdit struct {
 }
 
 func (e SetAttributeHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
+	return e.ApplyWithOriginal(data, data)
+}
+
+func (e SetAttributeHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, EditResult, error) {
 	if e.Attribute == "" {
 		return nil, EditResult{}, fmt.Errorf("set_attribute requires attribute")
 	}
@@ -27,19 +31,21 @@ func (e SetAttributeHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		return nil, EditResult{}, fmt.Errorf("parse input hcl: %s", diags.Error())
 	}
 
+	originalFile, originalDiags := hclwrite.ParseConfig(original, "original.tf", hcl.InitialPos)
+	if originalDiags.HasErrors() {
+		return nil, EditResult{}, fmt.Errorf("parse original hcl: %s", originalDiags.Error())
+	}
+
 	valueTokens, err := parseValueTokens(e.ValueHCL)
 	if err != nil {
 		return nil, EditResult{}, err
 	}
 
-	createIfMissing := true
-	if !e.CreateIfMissing {
-		createIfMissing = false
-	}
+	createIfMissing := e.CreateIfMissing
 
 	targetBody := file.Body()
 	if e.TargetBlock != nil {
-		target := findMatchingBlock(file.Body(), *e.TargetBlock)
+		target := targetBlockFromOriginal(file.Body(), originalFile.Body(), *e.TargetBlock)
 		if target == nil {
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
 		}

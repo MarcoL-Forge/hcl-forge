@@ -17,6 +17,10 @@ type Edit interface {
 	Apply(data []byte) ([]byte, EditResult, error)
 }
 
+type OriginalAwareEdit interface {
+	ApplyWithOriginal(data []byte, original []byte) ([]byte, EditResult, error)
+}
+
 func ApplyEdits(data []byte, edits []Edit) ([]byte, []EditResult, error) {
 	current := data
 	results := make([]EditResult, 0, len(edits))
@@ -27,7 +31,17 @@ func ApplyEdits(data []byte, edits []Edit) ([]byte, []EditResult, error) {
 		start := time.Now()
 		logger.Debug("edit_start", map[string]any{"index": i, "type": editType})
 
-		updated, result, err := edit.Apply(current)
+		var (
+			updated []byte
+			result  EditResult
+			err     error
+		)
+
+		if originalAwareEdit, ok := edit.(OriginalAwareEdit); ok {
+			updated, result, err = originalAwareEdit.ApplyWithOriginal(current, data)
+		} else {
+			updated, result, err = edit.Apply(current)
+		}
 		if err != nil {
 			logger.Error("edit_failed", map[string]any{
 				"index":       i,

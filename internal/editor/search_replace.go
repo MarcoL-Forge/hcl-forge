@@ -20,6 +20,10 @@ type SearchReplaceEdit struct {
 }
 
 func (e SearchReplaceEdit) Apply(data []byte) ([]byte, EditResult, error) {
+	return e.ApplyWithOriginal(data, data)
+}
+
+func (e SearchReplaceEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, EditResult, error) {
 	if e.Old == "" {
 		return nil, EditResult{}, fmt.Errorf("old value cannot be empty")
 	}
@@ -58,9 +62,26 @@ func (e SearchReplaceEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		return nil, EditResult{}, fmt.Errorf("parse input hcl: %s", diags.Error())
 	}
 
+	originalFile, originalDiags := hclwrite.ParseConfig(original, "original.tf", hcl.InitialPos)
+	if originalDiags.HasErrors() {
+		return nil, EditResult{}, fmt.Errorf("parse original hcl: %s", originalDiags.Error())
+	}
+
 	var targetBodies []*hclwrite.Body
 	if e.TargetBlock != nil {
-		targetBodies = findMatchingBodies(file.Body(), *e.TargetBlock, matcher)
+		positions := findMatchingBodyPositions(originalFile.Body(), *e.TargetBlock, matcher)
+		if len(positions) == 0 {
+			return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
+		}
+
+		targetBodies = make([]*hclwrite.Body, 0, len(positions))
+		for _, position := range positions {
+			targetBody := bodyAtPosition(file.Body(), position)
+			if targetBody != nil {
+				targetBodies = append(targetBodies, targetBody)
+			}
+		}
+
 		if len(targetBodies) == 0 {
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
 		}
@@ -173,4 +194,56 @@ func globPatternToRegex(pattern string) string {
 	escaped = strings.ReplaceAll(escaped, `\[`, `[`) // preserve character classes
 	escaped = strings.ReplaceAll(escaped, `\]`, `]`)
 	return escaped
+}
+
+type bodyPosition []int
+
+func findMatchingBodyPositions(body *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) []bodyPosition {
+	return findMatchingBodyPositionsWithParents(body, selector, nil, nil, matcher)
+}
+
+func findMatchingBodyPositionsWithParents(
+	body *hclwrite.Body,
+	selector BlockSelector,
+	ancestry []ParentSelector,
+	path bodyPosition,
+	matcher deleteMatcher,
+) []bodyPosition {
+	positions := make([]bodyPosition, 0)
+
+	for index, block := range body.Blocks() {
+		nextPath := append(append(bodyPosition(nil), path...), index)
+		if blockMatchesDeleteSelector(block, selector, matcher) && parentsMatchDeleteSelector(ancestry, selector.Parents, matcher) {
+			positions = append(positions, nextPath)
+		}
+
+		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
+			Type:   block.Type(),
+			Labels: append([]string(nil), block.Labels()...),
+		})
+
+		positions = append(positions, findMatchingBodyPositionsWithParents(block.Body(), selector, nextAncestry, nextPath, matcher)...)
+	}
+
+	return positions
+}
+
+func bodyAtPosition(root *hclwrite.Body, position bodyPosition) *hclwrite.Body {
+	current := root
+
+	for i, idx := range position {
+		blocks := current.Blocks()
+		if idx < 0 || idx >= len(blocks) {
+			return nil
+		}
+
+		block := blocks[idx]
+		if i == len(position)-1 {
+			return block.Body()
+		}
+
+		current = block.Body()
+	}
+
+	return nil
 }

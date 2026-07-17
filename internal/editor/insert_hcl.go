@@ -34,6 +34,10 @@ type InsertHCLEdit struct {
 }
 
 func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
+	return e.ApplyWithOriginal(data, data)
+}
+
+func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, EditResult, error) {
 	logger := logging.Default()
 	logger.Debug("insert_hcl_start", map[string]any{
 		"has_target":    e.TargetBlock != nil,
@@ -49,6 +53,11 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 		return nil, EditResult{}, fmt.Errorf("parse input hcl: %s", diags.Error())
 	}
 
+	originalFile, originalDiags := hclwrite.ParseConfig(original, "original.tf", hcl.InitialPos)
+	if originalDiags.HasErrors() {
+		return nil, EditResult{}, fmt.Errorf("parse original hcl: %s", originalDiags.Error())
+	}
+
 	snippetFile, snippetDiags := hclwrite.ParseConfig([]byte(e.HCL), "snippet.tf", hcl.InitialPos)
 	if snippetDiags.HasErrors() {
 		return nil, EditResult{}, fmt.Errorf("parse snippet hcl: %s", snippetDiags.Error())
@@ -61,7 +70,8 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 			"type":   e.TargetBlock.Type,
 			"labels": e.TargetBlock.Labels,
 		})
-		target := findMatchingBlock(file.Body(), *e.TargetBlock)
+		originalTarget := findMatchingBlock(originalFile.Body(), *e.TargetBlock)
+		target := targetBlockFromOriginal(file.Body(), originalFile.Body(), *e.TargetBlock)
 		if target == nil {
 			logger.Debug("insert_hcl_target_missing", map[string]any{"type": e.TargetBlock.Type, "labels": e.TargetBlock.Labels})
 			if e.Guard != nil && e.Guard.IfTargetExists {
@@ -78,6 +88,14 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 				return nil, EditResult{}, fmt.Errorf("target block not found: type=%q labels=%v", e.TargetBlock.Type, e.TargetBlock.Labels)
 			}
 		} else if e.Guard != nil && e.Guard.IfTargetMissing {
+			if originalTarget != nil {
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block exists"}, nil
+			}
+		} else if e.Guard != nil && e.Guard.IfTargetExists && originalTarget == nil {
+			return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block missing"}, nil
+		}
+
+		if e.Guard != nil && e.Guard.IfTargetMissing && originalTarget != nil {
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block exists"}, nil
 		}
 		targetBody = target.Body()
@@ -91,6 +109,67 @@ func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
 	logger.Debug("insert_hcl_completed", map[string]any{"changed": changed || createdTarget})
 
 	return file.Bytes(), EditResult{Changed: true, Occurrences: 1, Message: "insert hcl applied"}, nil
+}
+
+func targetBlockFromOriginal(currentRoot, originalRoot *hclwrite.Body, selector BlockSelector) *hclwrite.Block {
+	position, ok := findFirstMatchingBodyPositionExact(originalRoot, selector)
+	if !ok {
+		return nil
+	}
+
+	return blockAtPosition(currentRoot, position)
+}
+
+func findFirstMatchingBodyPositionExact(root *hclwrite.Body, selector BlockSelector) (bodyPosition, bool) {
+	return findFirstMatchingBodyPositionExactWithParents(root, selector, nil, nil)
+}
+
+func findFirstMatchingBodyPositionExactWithParents(
+	body *hclwrite.Body,
+	selector BlockSelector,
+	ancestry []ParentSelector,
+	path bodyPosition,
+) (bodyPosition, bool) {
+	for index, block := range body.Blocks() {
+		nextPath := append(append(bodyPosition(nil), path...), index)
+		if blockMatches(block, selector) && parentsMatch(ancestry, selector.Parents) {
+			return nextPath, true
+		}
+
+		nextAncestry := append(append([]ParentSelector(nil), ancestry...), ParentSelector{
+			Type:   block.Type(),
+			Labels: append([]string(nil), block.Labels()...),
+		})
+
+		if nested, ok := findFirstMatchingBodyPositionExactWithParents(block.Body(), selector, nextAncestry, nextPath); ok {
+			return nested, true
+		}
+	}
+
+	return nil, false
+}
+
+func blockAtPosition(root *hclwrite.Body, position bodyPosition) *hclwrite.Block {
+	if len(position) == 0 {
+		return nil
+	}
+
+	current := root
+	for i, idx := range position {
+		blocks := current.Blocks()
+		if idx < 0 || idx >= len(blocks) {
+			return nil
+		}
+
+		block := blocks[idx]
+		if i == len(position)-1 {
+			return block
+		}
+
+		current = block.Body()
+	}
+
+	return nil
 }
 
 func ensureBlockPath(root *hclwrite.Body, selector BlockSelector) *hclwrite.Block {

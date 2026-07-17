@@ -152,19 +152,29 @@ func (l *Logger) log(level Level, msg string, fields map[string]any) {
 	case "json":
 		data, err := json.Marshal(fields)
 		if err != nil {
-			fmt.Fprintf(l.out, "{\"level\":\"error\",\"msg\":\"log marshal failed\",\"error\":%q}\n", err.Error())
+			if _, writeErr := fmt.Fprintf(l.out, "{\"level\":\"error\",\"msg\":\"log marshal failed\",\"error\":%q}\n", err.Error()); writeErr != nil {
+				return
+			}
 			return
 		}
-		fmt.Fprintln(l.out, string(data))
+		if _, writeErr := fmt.Fprintln(l.out, string(data)); writeErr != nil {
+			return
+		}
 		if l.artifact != nil {
-			fmt.Fprintln(l.artifact, string(data))
+			if _, writeErr := fmt.Fprintln(l.artifact, string(data)); writeErr != nil {
+				return
+			}
 		}
 	default:
-		fmt.Fprintln(l.out, formatText(fields))
+		if _, writeErr := fmt.Fprintln(l.out, formatText(fields)); writeErr != nil {
+			return
+		}
 		if l.artifact != nil {
 			data, err := json.Marshal(fields)
 			if err == nil {
-				fmt.Fprintln(l.artifact, string(data))
+				if _, writeErr := fmt.Fprintln(l.artifact, string(data)); writeErr != nil {
+					return
+				}
 			}
 		}
 	}
