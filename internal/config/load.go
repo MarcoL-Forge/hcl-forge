@@ -16,13 +16,17 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config %q: %w", path, err)
 	}
 
-	expanded, err := expandEnvVars(string(data))
-	if err != nil {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return nil, fmt.Errorf("parse yaml config %q: %w", path, err)
+	}
+
+	if err := expandEnvVarsInNode(&root); err != nil {
 		return nil, fmt.Errorf("expand config variables %q: %w", path, err)
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+	if err := root.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parse yaml config %q: %w", path, err)
 	}
 
@@ -31,6 +35,28 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func expandEnvVarsInNode(node *yaml.Node) error {
+	if node == nil {
+		return nil
+	}
+
+	if node.Kind == yaml.ScalarNode {
+		expanded, err := expandEnvVars(node.Value)
+		if err != nil {
+			return err
+		}
+		node.Value = expanded
+	}
+
+	for i := range node.Content {
+		if err := expandEnvVarsInNode(node.Content[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func expandEnvVars(in string) (string, error) {

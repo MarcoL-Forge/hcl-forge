@@ -195,6 +195,36 @@ edits:
 	}
 }
 
+func TestLoad_IgnoresEnvVarsInComments(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "tfedit.yaml")
+
+	content := `version: 1
+input:
+  root_dir: .
+  files:
+    - main.tf
+output:
+  mode: overwrite
+options:
+  workers: 1
+  fail_on_no_change: false
+edits:
+  # this comment references a missing env: ${MISSING_ENV}
+  - type: search_replace
+    old: old
+    new: new
+`
+
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if _, err := Load(cfgPath); err != nil {
+		t.Fatalf("expected comment env var to be ignored, got error: %v", err)
+	}
+}
+
 func TestLoad_PathSelectorConfig(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, "tfedit.yaml")
