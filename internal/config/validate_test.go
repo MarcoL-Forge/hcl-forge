@@ -194,6 +194,46 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: false},
+		{name: "insert_hcl placement append valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+				Placement: &InsertPlacementConfig{Mode: "append"},
+			}}
+		}, wantErr: false},
+		{name: "insert_hcl placement after_attribute missing anchor", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+				Placement: &InsertPlacementConfig{Mode: "after_attribute"},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl placement append forbids anchor", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+				Placement: &InsertPlacementConfig{Mode: "append", Attribute: "name"},
+			}}
+		}, wantErr: true},
+		{name: "insert_hcl placement mode invalid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type: "insert_hcl",
+				HCL:  "force_destroy = true",
+				Block: &BlockSelector{
+					Path: "resource.google_service_account.nodes",
+				},
+				Placement: &InsertPlacementConfig{Mode: "middle"},
+			}}
+		}, wantErr: true},
 		{name: "insert_hcl parent missing type", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{
 				Type: "insert_hcl",

@@ -96,6 +96,26 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
 			}
 
+			if edit.Placement != nil {
+				mode := edit.Placement.Mode
+				switch mode {
+				case "append", "prepend", "after_attribute", "before_attribute":
+				default:
+					return fmt.Errorf("edits[%d]: insert_hcl placement.mode must be one of append|prepend|after_attribute|before_attribute", i)
+				}
+
+				switch mode {
+				case "after_attribute", "before_attribute":
+					if edit.Placement.Attribute == "" {
+						return fmt.Errorf("edits[%d]: insert_hcl placement.attribute is required for mode %q", i, mode)
+					}
+				default:
+					if edit.Placement.Attribute != "" {
+						return fmt.Errorf("edits[%d]: insert_hcl placement.attribute is only supported for before_attribute|after_attribute", i)
+					}
+				}
+			}
+
 			if edit.Guard != nil && edit.Guard.IfTargetExists && edit.Guard.IfTargetMissing {
 				return fmt.Errorf("edits[%d]: guard.if_target_exists and guard.if_target_missing cannot both be true", i)
 			}

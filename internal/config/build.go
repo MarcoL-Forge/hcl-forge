@@ -122,6 +122,11 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 				IfTargetExists:  editCfg.Guard != nil && editCfg.Guard.IfTargetExists,
 				IfTargetMissing: editCfg.Guard != nil && editCfg.Guard.IfTargetMissing,
 			},
+			Placement: &editor.InsertPlacement{
+				Mode:      placementMode(editCfg.Placement),
+				Attribute: placementAttribute(editCfg.Placement),
+				Strict:    editCfg.Placement != nil && editCfg.Placement.Strict,
+			},
 		}, nil
 
 	case "delete_hcl":
@@ -188,6 +193,22 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 	default:
 		return nil, fmt.Errorf("unsupported edit type %q", editCfg.Type)
 	}
+}
+
+func placementMode(cfg *InsertPlacementConfig) string {
+	if cfg == nil || cfg.Mode == "" {
+		return "append"
+	}
+
+	return cfg.Mode
+}
+
+func placementAttribute(cfg *InsertPlacementConfig) string {
+	if cfg == nil {
+		return ""
+	}
+
+	return cfg.Attribute
 }
 
 func resolveBlockSelector(block BlockSelector) (resolvedSelector, error) {

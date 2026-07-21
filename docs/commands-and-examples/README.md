@@ -205,6 +205,51 @@ edits:
       path: resource.google_container_node_pool.pool.node_config.shielded_instance_config
     hcl: |
       enable_secure_boot = true
+
+Placement controls (precise insertion point inside the target block body):
+
+```yaml
+edits:
+  - type: insert_hcl
+    block:
+      path: module.tfe_workspace.example1
+    placement:
+      mode: append
+    hcl: |
+      lifecycle {
+        prevent_destroy = true
+      }
+```
+
+Supported `placement.mode` values:
+
+- `append`: insert at end of target body (before closing `}`).
+- `prepend`: insert at top of target body.
+- `after_attribute`: insert right after a named attribute.
+- `before_attribute`: insert right before a named attribute.
+
+Attribute-anchored placement:
+
+```yaml
+edits:
+  - type: insert_hcl
+    block:
+      path: module.tfe_workspace.example2
+    placement:
+      mode: after_attribute
+      attribute: execution_mode
+      strict: true
+    hcl: |
+      vcs_repo = {
+        identifier = "example-org/example2"
+        branch     = "main"
+      }
+```
+
+`placement.strict` behavior:
+
+- `true`: fail this edit when the anchor attribute is missing.
+- `false` (default): fallback to append when anchor attribute is missing.
 ```
 
 ### 3) delete_hcl

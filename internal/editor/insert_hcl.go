@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/MarcoL-Forge/hcl-forge/internal/logging"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
@@ -26,11 +28,18 @@ type InsertGuard struct {
 	IfTargetMissing bool
 }
 
+type InsertPlacement struct {
+	Mode      string
+	Attribute string
+	Strict    bool
+}
+
 type InsertHCLEdit struct {
 	HCL               string
 	TargetBlock       *BlockSelector
 	EnsureTargetBlock bool
 	Guard             *InsertGuard
+	Placement         *InsertPlacement
 }
 
 func (e InsertHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
@@ -65,11 +74,18 @@ func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 
 	targetBody := file.Body()
 	createdTarget := false
+	var targetPosition bodyPosition
+	hasTargetPosition := false
 	if e.TargetBlock != nil {
 		logger.Debug("insert_hcl_resolve_target", map[string]any{
 			"type":   e.TargetBlock.Type,
 			"labels": e.TargetBlock.Labels,
 		})
+		if position, ok := findFirstMatchingBodyPositionExact(originalFile.Body(), *e.TargetBlock); ok {
+			targetPosition = position
+			hasTargetPosition = true
+		}
+
 		originalTarget := findMatchingBlock(originalFile.Body(), *e.TargetBlock)
 		target := targetBlockFromOriginal(file.Body(), originalFile.Body(), *e.TargetBlock)
 		if target == nil {
@@ -99,6 +115,27 @@ func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 			return data, EditResult{Changed: false, Occurrences: 0, Message: "guard skipped: target block exists"}, nil
 		}
 		targetBody = target.Body()
+	}
+
+	placement := InsertPlacement{Mode: "append"}
+	hasExplicitPlacement := e.Placement != nil
+	if hasExplicitPlacement {
+		placement = *e.Placement
+		if placement.Mode == "" {
+			placement.Mode = "append"
+		}
+	}
+
+	if e.TargetBlock != nil && hasTargetPosition && hasExplicitPlacement {
+		inserted, changed, err := insertAtPlacement(data, targetPosition, e.HCL, placement)
+		if err != nil {
+			return nil, EditResult{}, err
+		}
+
+		if changed {
+			logger.Debug("insert_hcl_completed", map[string]any{"changed": true})
+			return inserted, EditResult{Changed: true, Occurrences: 1, Message: "insert hcl applied"}, nil
+		}
 	}
 
 	changed := applyBodyEntries(targetBody, snippetFile.Body())
@@ -337,4 +374,179 @@ func cloneBlock(target *hclwrite.Body, source *hclwrite.Block) {
 
 func tokensEqual(a, b hclwrite.Tokens) bool {
 	return bytes.Equal(a.Bytes(), b.Bytes())
+}
+
+func insertAtPlacement(data []byte, targetPosition bodyPosition, snippet string, placement InsertPlacement) ([]byte, bool, error) {
+	if strings.TrimSpace(snippet) == "" {
+		return nil, false, fmt.Errorf("hcl snippet cannot be empty")
+	}
+
+	parsed, diags := hclsyntax.ParseConfig(data, "input.tf", hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, false, fmt.Errorf("parse input hcl for placement: %s", diags.Error())
+	}
+
+	rootBody, ok := parsed.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, false, fmt.Errorf("unexpected body type %T", parsed.Body)
+	}
+
+	target := syntaxBlockAtPosition(rootBody, targetPosition)
+	if target == nil {
+		return nil, false, fmt.Errorf("target block not found for placement")
+	}
+
+	indent := bodyIndent(target)
+	formattedSnippet := formatSnippetWithIndent(snippet, indent)
+	mode := placement.Mode
+	if mode == "" {
+		mode = "append"
+	}
+
+	startOffset := target.OpenBraceRange.End.Byte
+	endOffset := target.CloseBraceRange.Start.Byte
+	insertOffset := 0
+
+	switch mode {
+	case "append":
+		insertOffset = lineStartOffset(data, endOffset)
+	case "prepend":
+		insertOffset = lineEndOffset(data, startOffset)
+	case "after_attribute", "before_attribute":
+		attr := target.Body.Attributes[placement.Attribute]
+		if attr == nil {
+			if placement.Strict {
+				return nil, false, fmt.Errorf("placement attribute %q not found", placement.Attribute)
+			}
+
+			insertOffset = lineStartOffset(data, endOffset)
+		} else if mode == "after_attribute" {
+			insertOffset = lineEndOffset(data, attr.Range().End.Byte)
+		} else {
+			insertOffset = lineStartOffset(data, attr.Range().Start.Byte)
+		}
+	default:
+		return nil, false, fmt.Errorf("unsupported insert placement mode %q", mode)
+	}
+
+	if insertOffset < startOffset || insertOffset > endOffset {
+		return nil, false, fmt.Errorf("computed placement offset %d is outside target body", insertOffset)
+	}
+
+	insertText := formattedSnippet + "\n"
+	out := make([]byte, 0, len(data)+len(insertText))
+	out = append(out, data[:insertOffset]...)
+	out = append(out, []byte(insertText)...)
+	out = append(out, data[insertOffset:]...)
+
+	return out, true, nil
+}
+
+func syntaxBlockAtPosition(root *hclsyntax.Body, position bodyPosition) *hclsyntax.Block {
+	if len(position) == 0 {
+		return nil
+	}
+
+	current := root
+	for i, idx := range position {
+		if idx < 0 || idx >= len(current.Blocks) {
+			return nil
+		}
+
+		block := current.Blocks[idx]
+		if i == len(position)-1 {
+			return block
+		}
+
+		current = block.Body
+	}
+
+	return nil
+}
+
+func lineStartOffset(data []byte, offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	if offset > len(data) {
+		offset = len(data)
+	}
+
+	for offset > 0 && data[offset-1] != '\n' {
+		offset--
+	}
+
+	return offset
+}
+
+func lineEndOffset(data []byte, offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	if offset > len(data) {
+		offset = len(data)
+	}
+
+	for offset < len(data) && data[offset] != '\n' {
+		offset++
+	}
+
+	if offset < len(data) {
+		offset++
+	}
+
+	return offset
+}
+
+func bodyIndent(block *hclsyntax.Block) string {
+	if block.Body == nil {
+		return "  "
+	}
+
+	minColumn := 0
+	for _, attr := range block.Body.Attributes {
+		col := attr.NameRange.Start.Column
+		if col <= 1 {
+			continue
+		}
+		if minColumn == 0 || col < minColumn {
+			minColumn = col
+		}
+	}
+
+	for _, child := range block.Body.Blocks {
+		col := child.TypeRange.Start.Column
+		if col <= 1 {
+			continue
+		}
+		if minColumn == 0 || col < minColumn {
+			minColumn = col
+		}
+	}
+
+	if minColumn <= 1 {
+		return "  "
+	}
+
+	return strings.Repeat(" ", minColumn-1)
+}
+
+func formatSnippetWithIndent(snippet, indent string) string {
+	trimmed := strings.TrimSpace(snippet)
+	if trimmed == "" {
+		return ""
+	}
+
+	lines := strings.Split(trimmed, "\n")
+	for i, line := range lines {
+		line = strings.TrimRight(line, " \t")
+		if line == "" {
+			lines[i] = ""
+			continue
+		}
+
+		lines[i] = indent + line
+	}
+
+	return strings.Join(lines, "\n")
 }

@@ -80,10 +80,19 @@ Commands:
 	version     Print CLI version
   help        Show help for a command
 
+Playbook edits:
+	search_replace | insert_hcl | delete_hcl | set_attribute
+
+insert_hcl placement modes:
+	append | prepend | after_attribute | before_attribute
+
 Examples:
   hcl-forge plan -config examples/easy/playbook.yaml
   hcl-forge apply -config examples/easy/playbook.yaml
 	hcl-forge version
-  hcl-forge help plan`)
+	hcl-forge help plan
+
+Docs:
+	docs/commands-and-examples/README.md`)
 	}
 }

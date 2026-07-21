@@ -292,6 +292,11 @@ func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
 				BlockType: "resource",
 				Labels:    []string{"google_storage_bucket", "bucket"},
 			},
+			Placement: &InsertPlacementConfig{
+				Mode:      "after_attribute",
+				Attribute: "location",
+				Strict:    true,
+			},
 		}},
 	}
 
@@ -323,6 +328,14 @@ func TestBuildFilePlans_InsertHCLEdit(t *testing.T) {
 
 	if len(insertEdit.TargetBlock.Parents) != 0 {
 		t.Fatalf("expected no parents for target block, got %+v", insertEdit.TargetBlock.Parents)
+	}
+
+	if insertEdit.Placement == nil {
+		t.Fatalf("expected placement to be mapped")
+	}
+
+	if insertEdit.Placement.Mode != "after_attribute" || insertEdit.Placement.Attribute != "location" || !insertEdit.Placement.Strict {
+		t.Fatalf("unexpected placement mapping: %+v", insertEdit.Placement)
 	}
 }
 
