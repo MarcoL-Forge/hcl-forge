@@ -51,7 +51,6 @@ override.tf.json
 output/
 outputs/
 examples/keep-only-demo/
-examples/keep-only-demo/out/
 *.generated.tf
 *.generated.tfvars
 coverage.out
