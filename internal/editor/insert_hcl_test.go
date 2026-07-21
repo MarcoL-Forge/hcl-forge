@@ -306,3 +306,78 @@ func TestApplyEdits_InsertScopedUsesOriginalSelectorSnapshot(t *testing.T) {
 		t.Fatalf("expected insert to target old selector snapshot, got:\n%s", out)
 	}
 }
+
+func TestInsertHCLEdit_PlacementAppend_InsertsBeforeClosingBrace(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  execution_mode = "remote"
+}
+`
+
+	edit := InsertHCLEdit{
+		HCL: `lifecycle {
+  prevent_destroy = true
+}`,
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "example1"},
+		},
+		Placement: &InsertPlacement{Mode: "append"},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply insert_hcl placement append: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected change")
+	}
+
+	out := string(updated)
+	idxLifecycle := strings.Index(out, "lifecycle {")
+	idxClosing := strings.LastIndex(out, "}")
+	if idxLifecycle == -1 || idxClosing == -1 {
+		t.Fatalf("expected lifecycle block and closing brace, got:\n%s", out)
+	}
+	if idxLifecycle > idxClosing {
+		t.Fatalf("expected lifecycle inserted before closing brace, got:\n%s", out)
+	}
+}
+
+func TestInsertHCLEdit_PlacementAfterAttribute_InsertsAtAnchor(t *testing.T) {
+	input := `module "tfe_workspace" "example1" {
+  name           = "example1"
+  execution_mode = "remote"
+  tag_names      = ["hcl-forge"]
+}
+`
+
+	edit := InsertHCLEdit{
+		HCL: `lifecycle {
+  prevent_destroy = true
+}`,
+		TargetBlock: &BlockSelector{
+			Type:   "module",
+			Labels: []string{"tfe_workspace", "example1"},
+		},
+		Placement: &InsertPlacement{Mode: "after_attribute", Attribute: "execution_mode", Strict: true},
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply insert_hcl placement after_attribute: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected change")
+	}
+
+	out := string(updated)
+	idxExec := strings.Index(out, "execution_mode = \"remote\"")
+	idxLifecycle := strings.Index(out, "lifecycle {")
+	idxTags := strings.Index(out, "tag_names")
+	if idxExec == -1 || idxLifecycle == -1 || idxTags == -1 {
+		t.Fatalf("expected execution_mode, lifecycle and tag_names, got:\n%s", out)
+	}
+	if idxExec >= idxLifecycle || idxLifecycle >= idxTags {
+		t.Fatalf("expected lifecycle inserted after execution_mode and before tag_names, got:\n%s", out)
+	}
+}
