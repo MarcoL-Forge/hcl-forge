@@ -153,11 +153,14 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 		}
 
 		return editor.DeleteHCLEdit{
-			TargetBlock: targetBlock,
-			Attribute:   editCfg.Attribute,
-			DeleteAll:   editCfg.DeleteAll,
-			KeepOnly:    editCfg.KeepOnly,
-			MatchMode:   editCfg.MatchMode,
+			TargetBlock:   targetBlock,
+			Attribute:     editCfg.Attribute,
+			AttributePath: editCfg.AttributePath,
+			ElementKey:    editCfg.ElementKey,
+			ElementMatch:  editCfg.ElementMatch,
+			DeleteAll:     editCfg.DeleteAll,
+			KeepOnly:      editCfg.KeepOnly,
+			MatchMode:     editCfg.MatchMode,
 		}, nil
 
 	case "set_attribute":

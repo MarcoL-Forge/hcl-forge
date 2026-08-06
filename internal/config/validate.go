@@ -137,12 +137,24 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: delete_hcl match_mode must be one of glob|regex", i)
 			}
 
-			if edit.KeepOnly && edit.Block == nil {
-				return fmt.Errorf("edits[%d]: delete_hcl keep_only requires block selector", i)
+			if (edit.ElementKey != "" || edit.ElementMatch != "") && edit.AttributePath == "" {
+				return fmt.Errorf("edits[%d]: delete_hcl element_key/element_match require attribute_path", i)
+			}
+
+			if (edit.ElementKey == "") != (edit.ElementMatch == "") {
+				return fmt.Errorf("edits[%d]: delete_hcl element_key and element_match must be set together", i)
+			}
+
+			if edit.KeepOnly && edit.Block == nil && !(edit.AttributePath != "" && edit.ElementKey != "" && edit.ElementMatch != "") {
+				return fmt.Errorf("edits[%d]: delete_hcl keep_only requires block selector or attribute_path with element filtering", i)
 			}
 
 			if edit.KeepOnly && edit.Attribute != "" {
 				return fmt.Errorf("edits[%d]: delete_hcl keep_only cannot be combined with attribute", i)
+			}
+
+			if edit.AttributePath != "" && edit.Attribute != "" {
+				return fmt.Errorf("edits[%d]: delete_hcl attribute and attribute_path are mutually exclusive", i)
 			}
 
 			if edit.Block != nil {
@@ -150,8 +162,8 @@ func Validate(cfg Config) error {
 					return fmt.Errorf("edits[%d]: %w", i, err)
 				}
 			}
-			if edit.Attribute == "" && edit.Block == nil {
-				return fmt.Errorf("edits[%d]: delete_hcl requires attribute or block", i)
+			if edit.Attribute == "" && edit.Block == nil && edit.AttributePath == "" {
+				return fmt.Errorf("edits[%d]: delete_hcl requires attribute, attribute_path, or block", i)
 			}
 
 		case "set_attribute":

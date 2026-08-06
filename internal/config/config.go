@@ -38,9 +38,12 @@ type EditConfig struct {
 	Placement         *InsertPlacementConfig `yaml:"placement"`
 
 	// delete_hcl
-	DeleteAll bool   `yaml:"delete_all"`
-	KeepOnly  bool   `yaml:"keep_only"`
-	MatchMode string `yaml:"match_mode"`
+	DeleteAll     bool   `yaml:"delete_all"`
+	KeepOnly      bool   `yaml:"keep_only"`
+	MatchMode     string `yaml:"match_mode"`
+	AttributePath string `yaml:"attribute_path"`
+	ElementKey    string `yaml:"element_key"`
+	ElementMatch  string `yaml:"element_match"`
 
 	// set_attribute
 	ValueHCL        string `yaml:"value_hcl"`
