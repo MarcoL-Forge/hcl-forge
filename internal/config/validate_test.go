@@ -245,6 +245,21 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: true},
+		{name: "insert_hcl attribute_path valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:          "insert_hcl",
+				HCL:           "true",
+				AttributePath: "testing.testing2.enabled",
+			}}
+		}, wantErr: false},
+		{name: "insert_hcl attribute_path cannot combine placement", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:          "insert_hcl",
+				HCL:           "true",
+				AttributePath: "testing.testing2.enabled",
+				Placement:     &InsertPlacementConfig{Mode: "append"},
+			}}
+		}, wantErr: true},
 		{name: "delete_hcl with attribute", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{
 				Type:      "delete_hcl",
@@ -381,6 +396,21 @@ func TestValidate(t *testing.T) {
 				},
 			}}
 		}, wantErr: false},
+		{name: "set_attribute attribute_path valid", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:          "set_attribute",
+				AttributePath: "testing.testing2.enabled",
+				ValueHCL:      "true",
+			}}
+		}, wantErr: false},
+		{name: "set_attribute attribute and attribute_path exclusive", mutate: func(c *Config) {
+			c.Edits = []EditConfig{{
+				Type:          "set_attribute",
+				Attribute:     "testing",
+				AttributePath: "testing.testing2",
+				ValueHCL:      "true",
+			}}
+		}, wantErr: true},
 		{name: "set_attribute missing attribute", mutate: func(c *Config) {
 			c.Edits = []EditConfig{{
 				Type:     "set_attribute",

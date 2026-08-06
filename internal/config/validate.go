@@ -96,6 +96,14 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("edits[%d]: insert_hcl requires hcl", i)
 			}
 
+			if edit.AttributePath != "" && edit.Attribute != "" {
+				return fmt.Errorf("edits[%d]: insert_hcl attribute and attribute_path are mutually exclusive", i)
+			}
+
+			if edit.AttributePath != "" && edit.Placement != nil {
+				return fmt.Errorf("edits[%d]: insert_hcl placement is not supported with attribute_path", i)
+			}
+
 			if edit.Placement != nil {
 				mode := edit.Placement.Mode
 				switch mode {
@@ -167,8 +175,12 @@ func Validate(cfg Config) error {
 			}
 
 		case "set_attribute":
-			if edit.Attribute == "" {
-				return fmt.Errorf("edits[%d]: set_attribute requires attribute", i)
+			if edit.Attribute == "" && edit.AttributePath == "" {
+				return fmt.Errorf("edits[%d]: set_attribute requires attribute or attribute_path", i)
+			}
+
+			if edit.Attribute != "" && edit.AttributePath != "" {
+				return fmt.Errorf("edits[%d]: set_attribute attribute and attribute_path are mutually exclusive", i)
 			}
 
 			if edit.ValueHCL == "" {

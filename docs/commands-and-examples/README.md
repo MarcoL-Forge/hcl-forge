@@ -193,6 +193,18 @@ edits:
       force_destroy = true
 ```
 
+Insert nested key only when missing (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: insert_hcl
+    attribute_path: testing.testing3
+    hcl: |
+      {
+        enabled = true
+      }
+```
+
 Ensure and guard behavior:
 
 ```yaml
@@ -342,6 +354,16 @@ edits:
       labels: [google_storage_bucket, bucket]
     attribute: force_destroy
     value_hcl: true
+    create_if_missing: true
+```
+
+Set nested value path (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: set_attribute
+    attribute_path: testing.testing2.enabled
+    value_hcl: false
     create_if_missing: true
 ```
 

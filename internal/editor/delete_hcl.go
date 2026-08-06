@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -216,16 +215,9 @@ func (e DeleteHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 }
 
 func deleteByAttributePath(body *hclwrite.Body, edit DeleteHCLEdit, matcher deleteMatcher) (int, error) {
-	path := strings.Split(edit.AttributePath, ".")
-	if len(path) == 0 || strings.TrimSpace(path[0]) == "" {
-		return 0, fmt.Errorf("attribute_path cannot be empty")
-	}
-
-	for i := range path {
-		path[i] = strings.TrimSpace(path[i])
-		if path[i] == "" {
-			return 0, fmt.Errorf("attribute_path contains empty segment")
-		}
+	path, err := parseAttributePath(edit.AttributePath)
+	if err != nil {
+		return 0, err
 	}
 
 	root := path[0]
@@ -239,31 +231,25 @@ func deleteByAttributePath(body *hclwrite.Body, edit DeleteHCLEdit, matcher dele
 		return 1, nil
 	}
 
-	exprSource := attr.Expr().BuildTokens(nil).Bytes()
-	expr, parseDiags := hclsyntax.ParseExpression(exprSource, "attribute_path.tfvars", hcl.Pos{Line: 1, Column: 1})
-	if parseDiags.HasErrors() {
-		return 0, fmt.Errorf("parse attribute_path expression %q: %s", edit.AttributePath, parseDiags.Error())
-	}
-
-	value, evalDiags := expr.Value(nil)
-	if evalDiags.HasErrors() {
-		return 0, fmt.Errorf("attribute_path %q requires literal expression: %s", edit.AttributePath, evalDiags.Error())
+	value, err := attributeExprValue(attr, edit.AttributePath)
+	if err != nil {
+		return 0, err
 	}
 
 	var (
 		updated cty.Value
 		changed bool
 		count   int
-		err     error
+		opErr   error
 	)
 
 	if edit.ElementKey != "" {
-		updated, changed, count, err = filterListAtPath(value, path[1:], edit.ElementKey, edit.ElementMatch, edit.KeepOnly, matcher)
+		updated, changed, count, opErr = filterListAtPath(value, path[1:], edit.ElementKey, edit.ElementMatch, edit.KeepOnly, matcher)
 	} else {
-		updated, changed, count, err = deleteNestedKeyAtPath(value, path[1:], edit.KeepOnly, edit.DeleteAll, matcher)
+		updated, changed, count, opErr = deleteNestedKeyAtPath(value, path[1:], edit.KeepOnly, edit.DeleteAll, matcher)
 	}
-	if err != nil {
-		return 0, err
+	if opErr != nil {
+		return 0, opErr
 	}
 	if !changed {
 		return 0, nil

@@ -381,3 +381,59 @@ func TestInsertHCLEdit_PlacementAfterAttribute_InsertsAtAnchor(t *testing.T) {
 		t.Fatalf("expected lifecycle inserted after execution_mode and before tag_names, got:\n%s", out)
 	}
 }
+
+func TestInsertHCLEdit_AttributePath_InsertsMissingNestedValue(t *testing.T) {
+	input := `testing = {
+  testing1 = {
+    enabled = true
+  }
+}
+`
+
+	edit := InsertHCLEdit{
+		AttributePath: "testing.testing2",
+		HCL: `{
+  enabled = false
+}`,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply insert_hcl attribute_path: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, "testing2") || !strings.Contains(out, "enabled = false") {
+		t.Fatalf("expected inserted nested key, got:\n%s", out)
+	}
+}
+
+func TestInsertHCLEdit_AttributePath_DoesNotOverwriteExistingValue(t *testing.T) {
+	input := `testing = {
+  testing2 = {
+    enabled = false
+  }
+}
+`
+
+	edit := InsertHCLEdit{
+		AttributePath: "testing.testing2",
+		HCL: `{
+  enabled = true
+}`,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply insert_hcl attribute_path existing: %v", err)
+	}
+	if result.Changed {
+		t.Fatalf("expected no change when nested path already exists")
+	}
+	if string(updated) != input {
+		t.Fatalf("expected unchanged output")
+	}
+}

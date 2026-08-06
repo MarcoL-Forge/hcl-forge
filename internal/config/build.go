@@ -116,6 +116,7 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 
 		return editor.InsertHCLEdit{
 			HCL:               editCfg.HCL,
+			AttributePath:     editCfg.AttributePath,
 			TargetBlock:       targetBlock,
 			EnsureTargetBlock: editCfg.EnsureTargetBlock,
 			Guard: &editor.InsertGuard{
@@ -189,6 +190,7 @@ func buildEdit(editCfg EditConfig) (editor.Edit, error) {
 		return editor.SetAttributeHCLEdit{
 			TargetBlock:     targetBlock,
 			Attribute:       editCfg.Attribute,
+			AttributePath:   editCfg.AttributePath,
 			ValueHCL:        editCfg.ValueHCL,
 			CreateIfMissing: editCfg.CreateIfMissing,
 		}, nil
