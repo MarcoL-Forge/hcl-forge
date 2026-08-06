@@ -9,14 +9,18 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type DeleteHCLEdit struct {
-	TargetBlock *BlockSelector
-	Attribute   string
-	DeleteAll   bool
-	KeepOnly    bool
-	MatchMode   string
+	TargetBlock   *BlockSelector
+	Attribute     string
+	AttributePath string
+	ElementKey    string
+	ElementMatch  string
+	DeleteAll     bool
+	KeepOnly      bool
+	MatchMode     string
 }
 
 func (e DeleteHCLEdit) Apply(data []byte) ([]byte, EditResult, error) {
@@ -37,6 +41,68 @@ func (e DeleteHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 	originalFile, originalDiags := hclwrite.ParseConfig(original, "original.tf", hcl.InitialPos)
 	if originalDiags.HasErrors() {
 		return nil, EditResult{}, fmt.Errorf("parse original hcl: %s", originalDiags.Error())
+	}
+
+	if e.KeepOnly {
+		if e.TargetBlock == nil {
+			if e.AttributePath == "" || e.ElementKey == "" || e.ElementMatch == "" {
+				return nil, EditResult{}, fmt.Errorf("keep_only requires block selector or attribute_path list filter")
+			}
+		} else {
+			removed := keepOnlyMatchingBlocksByOriginal(file.Body(), originalFile.Body(), *e.TargetBlock, matcher)
+			if removed == 0 {
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "no blocks removed by keep_only"}, nil
+			}
+
+			return file.Bytes(), EditResult{Changed: true, Occurrences: removed, Message: "non-matching blocks removed by keep_only"}, nil
+		}
+	}
+
+	if e.AttributePath != "" {
+		targetBodies := []*hclwrite.Body{file.Body()}
+		if e.TargetBlock != nil {
+			positions := findMatchingBodyPositions(originalFile.Body(), *e.TargetBlock, matcher)
+			if !e.DeleteAll && len(positions) > 1 {
+				positions = positions[:1]
+			}
+
+			targetBodies = make([]*hclwrite.Body, 0, len(positions))
+			for _, position := range positions {
+				targetBody := bodyAtPosition(file.Body(), position)
+				if targetBody != nil {
+					targetBodies = append(targetBodies, targetBody)
+				}
+			}
+
+			if len(targetBodies) == 0 {
+				return data, EditResult{Changed: false, Occurrences: 0, Message: "target block not found"}, nil
+			}
+		} else if e.DeleteAll {
+			targetBodies = collectAllBodies(file.Body())
+		}
+
+		deleted := 0
+		for _, body := range targetBodies {
+			removed, err := deleteByAttributePath(body, e, matcher)
+			if err != nil {
+				return nil, EditResult{}, err
+			}
+
+			if removed == 0 {
+				continue
+			}
+
+			deleted += removed
+			if !e.DeleteAll {
+				break
+			}
+		}
+
+		if deleted == 0 {
+			return data, EditResult{Changed: false, Occurrences: 0, Message: "attribute path not found"}, nil
+		}
+
+		return file.Bytes(), EditResult{Changed: true, Occurrences: deleted, Message: "attribute path updated"}, nil
 	}
 
 	if e.KeepOnly {
@@ -146,6 +212,233 @@ func (e DeleteHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 	}
 
 	return file.Bytes(), EditResult{Changed: true, Occurrences: removed, Message: "block deleted"}, nil
+}
+
+func deleteByAttributePath(body *hclwrite.Body, edit DeleteHCLEdit, matcher deleteMatcher) (int, error) {
+	path, err := parseAttributePath(edit.AttributePath)
+	if err != nil {
+		return 0, err
+	}
+
+	root := path[0]
+	attr := body.GetAttribute(root)
+	if attr == nil {
+		return 0, nil
+	}
+
+	if len(path) == 1 && edit.ElementKey == "" && !edit.KeepOnly {
+		body.RemoveAttribute(root)
+		return 1, nil
+	}
+
+	value, err := attributeExprValue(attr, edit.AttributePath)
+	if err != nil {
+		return 0, err
+	}
+
+	var (
+		updated cty.Value
+		changed bool
+		count   int
+		opErr   error
+	)
+
+	if edit.ElementKey != "" {
+		updated, changed, count, opErr = filterListAtPath(value, path[1:], edit.ElementKey, edit.ElementMatch, edit.KeepOnly, matcher)
+	} else {
+		updated, changed, count, opErr = deleteNestedKeyAtPath(value, path[1:], edit.KeepOnly, edit.DeleteAll, matcher)
+	}
+	if opErr != nil {
+		return 0, opErr
+	}
+	if !changed {
+		return 0, nil
+	}
+
+	body.SetAttributeRaw(root, hclwrite.TokensForValue(updated))
+	return count, nil
+}
+
+func deleteNestedKeyAtPath(value cty.Value, path []string, keepOnly bool, deleteAll bool, matcher deleteMatcher) (cty.Value, bool, int, error) {
+	if len(path) == 0 {
+		return value, false, 0, nil
+	}
+
+	if !(value.Type().IsObjectType() || value.Type().IsMapType()) {
+		return value, false, 0, nil
+	}
+
+	items := value.AsValueMap()
+	segment := path[0]
+
+	if len(path) == 1 {
+		updated := make(map[string]cty.Value, len(items))
+		changed := false
+		count := 0
+
+		for key, item := range items {
+			matches := matcher.matches(segment, key)
+			if keepOnly {
+				if matches {
+					updated[key] = item
+				} else {
+					changed = true
+					count++
+				}
+				continue
+			}
+
+			if matches {
+				changed = true
+				count++
+				if !deleteAll {
+					for k, v := range items {
+						if k == key {
+							continue
+						}
+						updated[k] = v
+					}
+					return rebuildObjectLike(value, updated), true, 1, nil
+				}
+				continue
+			}
+
+			updated[key] = item
+		}
+
+		if !changed {
+			return value, false, 0, nil
+		}
+
+		return rebuildObjectLike(value, updated), true, count, nil
+	}
+
+	child, ok := items[segment]
+	if !ok {
+		return value, false, 0, nil
+	}
+
+	updatedChild, changed, count, err := deleteNestedKeyAtPath(child, path[1:], keepOnly, deleteAll, matcher)
+	if err != nil {
+		return cty.NilVal, false, 0, err
+	}
+	if !changed {
+		return value, false, 0, nil
+	}
+
+	items[segment] = updatedChild
+	return rebuildObjectLike(value, items), true, count, nil
+}
+
+func filterListAtPath(value cty.Value, path []string, key string, match string, keepOnly bool, matcher deleteMatcher) (cty.Value, bool, int, error) {
+	if len(path) > 0 {
+		if !(value.Type().IsObjectType() || value.Type().IsMapType()) {
+			return value, false, 0, nil
+		}
+
+		items := value.AsValueMap()
+		child, ok := items[path[0]]
+		if !ok {
+			return value, false, 0, nil
+		}
+
+		updatedChild, changed, count, err := filterListAtPath(child, path[1:], key, match, keepOnly, matcher)
+		if err != nil {
+			return cty.NilVal, false, 0, err
+		}
+		if !changed {
+			return value, false, 0, nil
+		}
+
+		items[path[0]] = updatedChild
+		return rebuildObjectLike(value, items), true, count, nil
+	}
+
+	if !(value.Type().IsTupleType() || value.Type().IsListType() || value.Type().IsSetType()) {
+		return value, false, 0, nil
+	}
+
+	elements := value.AsValueSlice()
+	filtered := make([]cty.Value, 0, len(elements))
+	removed := 0
+
+	for _, elem := range elements {
+		matches := false
+		if elem.Type().IsObjectType() || elem.Type().IsMapType() {
+			obj := elem.AsValueMap()
+			if candidate, ok := obj[key]; ok {
+				if str, ok := ctyString(candidate); ok {
+					matches = matcher.matches(match, str)
+				}
+			}
+		}
+
+		if keepOnly {
+			if matches {
+				filtered = append(filtered, elem)
+			} else {
+				removed++
+			}
+			continue
+		}
+
+		if matches {
+			removed++
+			continue
+		}
+
+		filtered = append(filtered, elem)
+	}
+
+	if removed == 0 {
+		return value, false, 0, nil
+	}
+
+	return rebuildSequenceLike(value, filtered), true, removed, nil
+}
+
+func ctyString(value cty.Value) (string, bool) {
+	if !value.IsKnown() || value.IsNull() {
+		return "", false
+	}
+
+	if value.Type() == cty.String {
+		return value.AsString(), true
+	}
+
+	return "", false
+}
+
+func rebuildObjectLike(original cty.Value, items map[string]cty.Value) cty.Value {
+	if original.Type().IsMapType() {
+		if len(items) == 0 {
+			return cty.MapValEmpty(original.Type().ElementType())
+		}
+
+		return cty.MapVal(items)
+	}
+
+	return cty.ObjectVal(items)
+}
+
+func rebuildSequenceLike(original cty.Value, elems []cty.Value) cty.Value {
+	if original.Type().IsListType() {
+		if len(elems) == 0 {
+			return cty.ListValEmpty(original.Type().ElementType())
+		}
+
+		return cty.ListVal(elems)
+	}
+
+	if original.Type().IsSetType() {
+		if len(elems) == 0 {
+			return cty.SetValEmpty(original.Type().ElementType())
+		}
+
+		return cty.SetVal(elems)
+	}
+
+	return cty.TupleVal(elems)
 }
 
 func keepOnlyMatchingBlocksByOriginal(currentRoot, originalRoot *hclwrite.Body, selector BlockSelector, matcher deleteMatcher) int {

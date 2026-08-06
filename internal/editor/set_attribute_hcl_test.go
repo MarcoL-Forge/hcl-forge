@@ -175,3 +175,58 @@ func TestApplyEdits_SetAttributeScopedUsesOriginalSelectorSnapshot(t *testing.T)
 		t.Fatalf("expected set_attribute to target old selector snapshot, got:\n%s", out)
 	}
 }
+
+func TestSetAttributeHCLEdit_AttributePath_UpdatesNestedValue(t *testing.T) {
+	input := `testing = {
+  testing1 = {
+    enabled = true
+  }
+}
+`
+
+	edit := SetAttributeHCLEdit{
+		AttributePath: "testing.testing1.enabled",
+		ValueHCL:      "false",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply set_attribute attribute_path: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, "enabled = false") {
+		t.Fatalf("expected nested value updated, got:\n%s", out)
+	}
+}
+
+func TestSetAttributeHCLEdit_AttributePath_CreatesNestedValueWhenMissing(t *testing.T) {
+	input := `testing = {
+  testing1 = {
+    enabled = true
+  }
+}
+`
+
+	edit := SetAttributeHCLEdit{
+		AttributePath:   "testing.testing2.enabled",
+		ValueHCL:        "true",
+		CreateIfMissing: true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply set_attribute attribute_path create: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if !strings.Contains(out, "testing2") || !strings.Contains(out, "enabled = true") {
+		t.Fatalf("expected nested path created, got:\n%s", out)
+	}
+}

@@ -437,6 +437,51 @@ func TestBuildFilePlans_DeleteHCLEditKeepOnlyAndRegexMode(t *testing.T) {
 	}
 }
 
+func TestBuildFilePlans_DeleteHCLEditAttributePathAndElementFilter(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tfvars"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:          "delete_hcl",
+			KeepOnly:      true,
+			AttributePath: "node_pools",
+			ElementKey:    "name",
+			ElementMatch:  "pool1",
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	deleteEdit, ok := plans[0].Edits[0].(editor.DeleteHCLEdit)
+	if !ok {
+		t.Fatalf("expected DeleteHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if !deleteEdit.KeepOnly {
+		t.Fatalf("expected keep_only true")
+	}
+
+	if deleteEdit.AttributePath != "node_pools" {
+		t.Fatalf("unexpected attribute_path: %q", deleteEdit.AttributePath)
+	}
+
+	if deleteEdit.ElementKey != "name" {
+		t.Fatalf("unexpected element_key: %q", deleteEdit.ElementKey)
+	}
+
+	if deleteEdit.ElementMatch != "pool1" {
+		t.Fatalf("unexpected element_match: %q", deleteEdit.ElementMatch)
+	}
+}
+
 func TestBuildFilePlans_NestedParentsMapping(t *testing.T) {
 	root := t.TempDir()
 	cfg := Config{
@@ -484,6 +529,68 @@ func TestBuildFilePlans_NestedParentsMapping(t *testing.T) {
 
 	if insertEdit.TargetBlock.Parents[1].Type != "node_config" {
 		t.Fatalf("unexpected second parent type: %q", insertEdit.TargetBlock.Parents[1].Type)
+	}
+}
+
+func TestBuildFilePlans_InsertHCLEditAttributePath(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tfvars"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:          "insert_hcl",
+			AttributePath: "testing.testing2",
+			HCL:           "{ enabled = true }",
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	insertEdit, ok := plans[0].Edits[0].(editor.InsertHCLEdit)
+	if !ok {
+		t.Fatalf("expected InsertHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if insertEdit.AttributePath != "testing.testing2" {
+		t.Fatalf("unexpected attribute_path: %q", insertEdit.AttributePath)
+	}
+}
+
+func TestBuildFilePlans_SetAttributeEditAttributePath(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{
+		Version: 1,
+		Input: InputConfig{
+			RootDir: root,
+			Files:   []string{"main.tfvars"},
+		},
+		Output: OutputConfig{Mode: "overwrite"},
+		Edits: []EditConfig{{
+			Type:          "set_attribute",
+			AttributePath: "testing.testing2.enabled",
+			ValueHCL:      "true",
+		}},
+	}
+
+	plans, err := BuildFilePlans(cfg)
+	if err != nil {
+		t.Fatalf("build file plans: %v", err)
+	}
+
+	setEdit, ok := plans[0].Edits[0].(editor.SetAttributeHCLEdit)
+	if !ok {
+		t.Fatalf("expected SetAttributeHCLEdit, got %T", plans[0].Edits[0])
+	}
+
+	if setEdit.AttributePath != "testing.testing2.enabled" {
+		t.Fatalf("unexpected attribute_path: %q", setEdit.AttributePath)
 	}
 }
 

@@ -411,3 +411,72 @@ func TestDeleteHCLEdit_KeepOnly_RequiresBlock(t *testing.T) {
 		t.Fatalf("expected error for keep_only without block")
 	}
 }
+
+func TestDeleteHCLEdit_DeleteNestedObjectKeyByAttributePath(t *testing.T) {
+	input := `testing = {
+  testing1 = {
+    enabled = true
+  }
+  testing2 = {
+    enabled = false
+  }
+}
+`
+
+	edit := DeleteHCLEdit{
+		AttributePath: "testing.testing2",
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl nested object key: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "testing2 =") {
+		t.Fatalf("expected nested key removed, got:\n%s", out)
+	}
+	if !strings.Contains(out, "testing1 =") {
+		t.Fatalf("expected non-target key to remain, got:\n%s", out)
+	}
+}
+
+func TestDeleteHCLEdit_KeepOnlyListElementsByAttributePath(t *testing.T) {
+	input := `node_pools = [
+  {
+    name = "pool1"
+    size = "small"
+  },
+  {
+    name = "pool2"
+    size = "medium"
+  },
+]
+`
+
+	edit := DeleteHCLEdit{
+		AttributePath: "node_pools",
+		ElementKey:    "name",
+		ElementMatch:  "pool1",
+		KeepOnly:      true,
+	}
+
+	updated, result, err := edit.Apply([]byte(input))
+	if err != nil {
+		t.Fatalf("apply delete_hcl keep_only list elements: %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("expected changed result")
+	}
+
+	out := string(updated)
+	if strings.Contains(out, "pool2") {
+		t.Fatalf("expected pool2 removed, got:\n%s", out)
+	}
+	if !strings.Contains(out, "pool1") {
+		t.Fatalf("expected pool1 to remain, got:\n%s", out)
+	}
+}

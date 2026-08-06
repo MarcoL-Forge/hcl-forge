@@ -36,6 +36,7 @@ type InsertPlacement struct {
 
 type InsertHCLEdit struct {
 	HCL               string
+	AttributePath     string
 	TargetBlock       *BlockSelector
 	EnsureTargetBlock bool
 	Guard             *InsertGuard
@@ -55,6 +56,10 @@ func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 
 	if e.HCL == "" {
 		return nil, EditResult{}, fmt.Errorf("hcl snippet cannot be empty")
+	}
+
+	if e.AttributePath != "" {
+		return e.applyWithAttributePath(data, original)
 	}
 
 	file, diags := hclwrite.ParseConfig(data, "input.tf", hcl.InitialPos)

@@ -193,6 +193,18 @@ edits:
       force_destroy = true
 ```
 
+Insert nested key only when missing (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: insert_hcl
+    attribute_path: testing.testing3
+    hcl: |
+      {
+        enabled = true
+      }
+```
+
 Ensure and guard behavior:
 
 ```yaml
@@ -297,6 +309,28 @@ edits:
 
 `match_mode` supports `glob` (default) and `regex`.
 
+Delete nested object keys (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: delete_hcl
+    attribute_path: testing.testing2
+```
+
+Keep only list elements by object field (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: delete_hcl
+    keep_only: true
+    attribute_path: node_pools
+    element_key: name
+    element_match: pool1
+```
+
+`attribute_path` uses dot-separated segments to target nested object keys.
+`element_key` + `element_match` filters list elements where the object field matches using `match_mode` (`glob` default, or `regex`).
+
 ### 4) set_attribute
 
 Set inside a selected block:
@@ -320,6 +354,16 @@ edits:
       labels: [google_storage_bucket, bucket]
     attribute: force_destroy
     value_hcl: true
+    create_if_missing: true
+```
+
+Set nested value path (tfvars/root attributes):
+
+```yaml
+edits:
+  - type: set_attribute
+    attribute_path: testing.testing2.enabled
+    value_hcl: false
     create_if_missing: true
 ```
 
