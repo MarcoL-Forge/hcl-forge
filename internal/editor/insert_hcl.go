@@ -77,6 +77,16 @@ func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 		return nil, EditResult{}, fmt.Errorf("parse snippet hcl: %s", snippetDiags.Error())
 	}
 
+	snippetSyntax, snippetSyntaxDiags := hclsyntax.ParseConfig([]byte(e.HCL), "snippet.tf", hcl.InitialPos)
+	if snippetSyntaxDiags.HasErrors() {
+		return nil, EditResult{}, fmt.Errorf("parse snippet hcl (syntax): %s", snippetSyntaxDiags.Error())
+	}
+
+	synBody, ok := snippetSyntax.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, EditResult{}, fmt.Errorf("unexpected snippet syntax body type %T", snippetSyntax.Body)
+	}
+
 	targetBody := file.Body()
 	createdTarget := false
 	var targetPosition bodyPosition
@@ -143,7 +153,7 @@ func (e InsertHCLEdit) ApplyWithOriginal(data []byte, original []byte) ([]byte, 
 		}
 	}
 
-	changed := applyBodyEntries(targetBody, snippetFile.Body())
+	changed := applyBodyEntriesPreserve(targetBody, snippetFile.Body(), synBody)
 	if !changed && !createdTarget {
 		return data, EditResult{Changed: false, Occurrences: 0, Message: "no snippet entries found"}, nil
 	}
@@ -332,49 +342,146 @@ func blockMatches(block *hclwrite.Block, selector BlockSelector) bool {
 	return true
 }
 
-func applyBodyEntries(target, source *hclwrite.Body) bool {
+// applyBodyEntriesPreserve merges entries from the source hclwrite body into
+// the target while preserving the ordering and interleaving of attributes
+// and blocks as found in the source syntax body. The syntax parameter may be
+// nil; when present it is used to determine original positions for ordering.
+func applyBodyEntriesPreserve(target, source *hclwrite.Body, syntax *hclsyntax.Body) bool {
 	changed := false
 
-	attributes := source.Attributes()
-	attributeNames := make([]string, 0, len(attributes))
-	for name := range attributes {
-		attributeNames = append(attributeNames, name)
+	// Build an ordered list of items (attributes and blocks) based on syntax
+	// positions when available; otherwise fall back to source order.
+	type item struct {
+		kind     string // "attr" or "block"
+		name     string // attr name
+		blk      *hclwrite.Block
+		synBlk   *hclsyntax.Block
+		startPos int
 	}
-	sort.Strings(attributeNames)
 
-	for _, name := range attributeNames {
-		attr := attributes[name]
-		newTokens := attr.Expr().BuildTokens(nil)
-		existing := target.GetAttribute(name)
-		if existing != nil && tokensEqual(existing.Expr().BuildTokens(nil), newTokens) {
+	items := make([]item, 0)
+
+	if syntax != nil {
+		// attributes
+		for name, a := range syntax.Attributes {
+			items = append(items, item{kind: "attr", name: name, startPos: a.NameRange.Start.Byte})
+		}
+		// blocks
+		for _, b := range syntax.Blocks {
+			items = append(items, item{kind: "block", synBlk: b, startPos: b.TypeRange.Start.Byte})
+		}
+		sort.Slice(items, func(i, j int) bool { return items[i].startPos < items[j].startPos })
+	} else {
+		// Fallback: attributes first (in source map iteration order is undefined), then blocks in source order.
+		for name := range source.Attributes() {
+			items = append(items, item{kind: "attr", name: name})
+		}
+		for _, b := range source.Blocks() {
+			items = append(items, item{kind: "block", blk: b})
+		}
+	}
+
+	// When matching source blocks by type/labels, handle repeated blocks by
+	// tracking consumption counts so we pick the next occurrence in source.
+	consumed := map[string]int{}
+
+	for _, it := range items {
+		if it.kind == "attr" {
+			// Ensure attribute exists in source
+			attr := source.GetAttribute(it.name)
+			if attr == nil {
+				continue
+			}
+
+			newTokens := attr.Expr().BuildTokens(nil)
+			existing := target.GetAttribute(it.name)
+			if existing != nil && tokensEqual(existing.Expr().BuildTokens(nil), newTokens) {
+				continue
+			}
+
+			target.SetAttributeRaw(it.name, newTokens)
+			changed = true
 			continue
 		}
 
-		target.SetAttributeRaw(name, newTokens)
-		changed = true
-	}
+		// Block handling
+		var srcBlock *hclwrite.Block
+		var synBlock *hclsyntax.Block
 
-	for _, block := range source.Blocks() {
-		existing := findDirectMatchingBlock(target, block.Type(), block.Labels())
+		if it.blk != nil {
+			srcBlock = it.blk
+		} else if it.synBlk != nil {
+			// Find the corresponding source block by matching type/labels and
+			// picking the Nth occurrence.
+			typ := it.synBlk.Type
+			labels := append([]string(nil), it.synBlk.Labels...)
+			key := typ + "|" + strings.Join(labels, "\x00")
+			idx := consumed[key]
+			for _, b := range source.Blocks() {
+				if b.Type() != typ {
+					continue
+				}
+				bl := b.Labels()
+				if len(bl) != len(labels) {
+					continue
+				}
+				match := true
+				for i := range bl {
+					if bl[i] != labels[i] {
+						match = false
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+				if idx == 0 {
+					srcBlock = b
+					break
+				}
+				idx--
+			}
+			consumed[key] = consumed[key] + 1
+			synBlock = it.synBlk
+		}
+
+		if srcBlock == nil {
+			continue
+		}
+
+		existing := findDirectMatchingBlock(target, srcBlock.Type(), srcBlock.Labels())
 		if existing != nil {
-			if applyBodyEntries(existing.Body(), block.Body()) {
+			// Recurse: find corresponding syntax child body if available.
+			var childSyn *hclsyntax.Body
+			if synBlock != nil {
+				childSyn = synBlock.Body
+			}
+			if applyBodyEntriesPreserve(existing.Body(), srcBlock.Body(), childSyn) {
 				changed = true
 			}
 			continue
 		}
 
-		// Ensure appended blocks are separated from existing content.
+		// Append new block preserving formatting separation.
 		target.AppendNewline()
-		cloneBlock(target, block)
+		if synBlock != nil {
+			cloneBlockPreserveWithSyntax(target, srcBlock, synBlock)
+		} else {
+			cloneBlockPreserveWithSyntax(target, srcBlock, nil)
+		}
 		changed = true
 	}
 
 	return changed
 }
 
-func cloneBlock(target *hclwrite.Body, source *hclwrite.Block) {
+func cloneBlockPreserveWithSyntax(target *hclwrite.Body, source *hclwrite.Block, syn *hclsyntax.Block) {
 	newBlock := target.AppendNewBlock(source.Type(), source.Labels())
-	applyBodyEntries(newBlock.Body(), source.Body())
+	var childSyn *hclsyntax.Body
+	if syn != nil {
+		childSyn = syn.Body
+	}
+	applyBodyEntriesPreserve(newBlock.Body(), source.Body(), childSyn)
 }
 
 func tokensEqual(a, b hclwrite.Tokens) bool {
